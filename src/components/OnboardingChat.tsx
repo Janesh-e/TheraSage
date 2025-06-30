@@ -1,9 +1,9 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import ChatBubble from "@/components/ChatBubble";
 import TypingIndicator from "@/components/TypingIndicator";
 import ProgressIndicator from "@/components/ProgressIndicator";
+import MainChat from "@/components/MainChat";
 
 interface OnboardingChatProps {
   isSignedUp: boolean;
@@ -15,6 +15,10 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
   const [responses, setResponses] = useState<Record<number, string>>({});
   const [chatHistory, setChatHistory] = useState<Array<{ type: 'question' | 'answer', content: string, step: number }>>([]);
   const [showInput, setShowInput] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  const [showMainChat, setShowMainChat] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const questions = [
     {
@@ -80,6 +84,11 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
     "You're doing great! 💜"
   ];
 
+  // Auto-scroll to bottom when new messages appear
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory, showTyping]);
+
   useEffect(() => {
     // Show initial greeting after a short delay
     const timer = setTimeout(() => {
@@ -122,6 +131,14 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
         setTimeout(() => {
           setShowInput(true);
         }, 500);
+      } else if (questions[currentStep].type === 'completion') {
+        // Handle completion
+        setTimeout(() => {
+          setIsComplete(true);
+          setTimeout(() => {
+            setShowMainChat(true);
+          }, 3000);
+        }, 1000);
       }
     }, 1500 + Math.random() * 1000); // Variable typing time for natural feel
   };
@@ -146,123 +163,169 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
   const totalSteps = questions.length - 2; // Exclude greeting and completion
   const currentProgress = Math.max(0, currentStep - 1);
 
-  if (currentStep >= questions.length) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center p-4">
-        <div className="max-w-2xl mx-auto text-center animate-fade-in">
-          <div className="text-6xl mb-6">🎉</div>
-          <h2 className="text-3xl font-light text-gray-800 mb-4">
-            Welcome to your safe space!
-          </h2>
-          <p className="text-gray-600 mb-8">
-            I'm {responses[2] || 'here'} whenever you need me, {responses[1] || 'friend'}. 
-            Let's start this journey together. 💜
-          </p>
-          <Button className="bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white px-8 py-4 rounded-full text-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300">
-            Begin chatting ✨
-          </Button>
-        </div>
-      </div>
-    );
+  if (showMainChat) {
+    return <MainChat userResponses={responses} />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50">
-      <div className="max-w-2xl mx-auto p-4 pt-8">
-        {currentStep > 0 && currentStep < questions.length - 1 && (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-20 w-64 h-64 bg-purple-200/20 rounded-full animate-pulse blur-3xl"></div>
+        <div className="absolute top-40 right-32 w-48 h-48 bg-pink-200/20 rounded-full animate-pulse delay-1000 blur-3xl"></div>
+        <div className="absolute bottom-32 left-1/4 w-32 h-32 bg-blue-200/20 rounded-full animate-pulse delay-2000 blur-3xl"></div>
+        <div className="absolute top-1/3 right-1/4 w-40 h-40 bg-yellow-200/20 rounded-full animate-pulse delay-3000 blur-3xl"></div>
+      </div>
+
+      {/* Floating decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-32 left-1/4 text-purple-200/30 text-6xl animate-bounce delay-1000">🌸</div>
+        <div className="absolute top-1/2 right-20 text-pink-200/30 text-4xl animate-bounce delay-2000">💜</div>
+        <div className="absolute bottom-40 left-20 text-blue-200/30 text-5xl animate-bounce delay-3000">🌙</div>
+        <div className="absolute top-1/4 right-1/3 text-yellow-200/30 text-3xl animate-bounce delay-4000">✨</div>
+      </div>
+
+      {/* Sticky Progress Indicator */}
+      {currentStep > 0 && currentStep < questions.length - 1 && (
+        <div className="sticky top-0 z-20 bg-gradient-to-br from-purple-50/90 via-pink-50/90 to-blue-50/90 backdrop-blur-sm border-b border-white/50 p-4">
           <ProgressIndicator 
             current={currentProgress} 
             total={totalSteps} 
             message={progressMessages[Math.min(Math.floor(currentProgress / 2), progressMessages.length - 1)]}
           />
+        </div>
+      )}
+
+      <div 
+        ref={containerRef}
+        className={`max-w-4xl mx-auto p-6 pt-8 relative z-10 transition-all duration-1000 ${
+          isComplete ? 'opacity-0 transform scale-95' : 'opacity-100 transform scale-100'
+        }`}
+      >
+        {/* Welcome header for first message */}
+        {currentStep === 0 && (
+          <div className="text-center mb-8 animate-fade-in">
+            <div className="inline-block p-4 bg-white/60 backdrop-blur-sm rounded-3xl shadow-lg border border-white/50 mb-4">
+              <h2 className="text-2xl font-light text-gray-700">Welcome to your safe space</h2>
+              <p className="text-gray-600 mt-2">Let's get to know each other</p>
+            </div>
+          </div>
         )}
         
-        <div className="space-y-6 mb-6">
+        <div className="space-y-8 mb-8">
           {chatHistory.map((message, index) => (
-            <ChatBubble
-              key={index}
-              message={message.content}
-              isBot={message.type === 'question'}
-              delay={index * 100}
-            />
+            <div key={index} className="animate-fade-in">
+              <ChatBubble
+                message={message.content}
+                isBot={message.type === 'question'}
+                delay={0}
+              />
+            </div>
           ))}
           
-          {showTyping && <TypingIndicator />}
+          {showTyping && (
+            <div className="animate-fade-in">
+              <TypingIndicator />
+            </div>
+          )}
         </div>
 
         {showInput && currentQuestion && (
-          <div className="animate-fade-in">
-            {currentQuestion.type === 'input' && (
-              <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
-                <input
-                  type="text"
-                  placeholder={currentQuestion.placeholder}
-                  className="w-full p-3 border border-gray-200 rounded-xl focus:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                      handleResponse(e.currentTarget.value);
-                      e.currentTarget.value = '';
-                    }
-                  }}
-                  autoFocus
-                />
-                {currentQuestion.optional && (
-                  <button
-                    onClick={handleSkip}
-                    className="text-gray-400 text-sm mt-2 hover:text-gray-600 transition-colors"
-                  >
-                    Skip this question
-                  </button>
-                )}
-              </div>
-            )}
-
-            {currentQuestion.type === 'textarea' && (
-              <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
-                <textarea
-                  placeholder={currentQuestion.placeholder}
-                  className="w-full p-3 border border-gray-200 rounded-xl focus:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-100 h-24 resize-none"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      if (e.currentTarget.value.trim()) {
+          <div className="animate-fade-in sticky bottom-6 z-10">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/70 max-w-2xl mx-auto">
+              {currentQuestion.type === 'input' && (
+                <div>
+                  <input
+                    type="text"
+                    placeholder={currentQuestion.placeholder}
+                    className="w-full p-4 border-2 border-purple-100 rounded-2xl focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-100 text-lg bg-white/90"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
                         handleResponse(e.currentTarget.value);
                         e.currentTarget.value = '';
                       }
-                    }
-                  }}
-                  autoFocus
-                />
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-gray-400">Press Enter to continue, Shift+Enter for new line</span>
+                    }}
+                    autoFocus
+                  />
                   {currentQuestion.optional && (
                     <button
                       onClick={handleSkip}
-                      className="text-gray-400 text-sm hover:text-gray-600 transition-colors"
+                      className="text-gray-400 text-sm mt-3 hover:text-gray-600 transition-colors block mx-auto"
                     >
                       Skip this question
                     </button>
                   )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {currentQuestion.type === 'buttons' && currentQuestion.options && (
-              <div className="grid gap-3">
-                {currentQuestion.options.map((option, index) => (
-                  <Button
-                    key={index}
-                    onClick={() => handleResponse(option)}
-                    variant="outline"
-                    className="p-4 text-left justify-start bg-white hover:bg-purple-50 border-gray-200 hover:border-purple-200 rounded-xl transition-all duration-200 hover:scale-105"
-                  >
-                    {option}
-                  </Button>
-                ))}
-              </div>
-            )}
+              {currentQuestion.type === 'textarea' && (
+                <div>
+                  <textarea
+                    placeholder={currentQuestion.placeholder}
+                    className="w-full p-4 border-2 border-purple-100 rounded-2xl focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-100 h-32 resize-none text-lg bg-white/90"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (e.currentTarget.value.trim()) {
+                          handleResponse(e.currentTarget.value);
+                          e.currentTarget.value = '';
+                        }
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <div className="flex justify-between items-center mt-3">
+                    <span className="text-xs text-gray-500">Press Enter to continue, Shift+Enter for new line</span>
+                    {currentQuestion.optional && (
+                      <button
+                        onClick={handleSkip}
+                        className="text-gray-400 text-sm hover:text-gray-600 transition-colors"
+                      >
+                        Skip this question
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {currentQuestion.type === 'buttons' && currentQuestion.options && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {currentQuestion.options.map((option, index) => (
+                    <Button
+                      key={index}
+                      onClick={() => handleResponse(option)}
+                      variant="outline"
+                      className="p-6 text-left justify-start bg-white/90 hover:bg-purple-50 border-2 border-purple-100 hover:border-purple-200 rounded-2xl transition-all duration-200 hover:scale-105 hover:shadow-lg text-lg"
+                    >
+                      {option}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
+
+        {/* Completion message */}
+        {isComplete && (
+          <div className="text-center animate-fade-in">
+            <div className="inline-block p-8 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/70 mb-8">
+              <div className="text-6xl mb-6">🎉</div>
+              <h2 className="text-3xl font-light text-gray-800 mb-4">
+                Welcome to your safe space!
+              </h2>
+              <p className="text-gray-600 text-lg">
+                I'm {responses[2] || 'here'} whenever you need me, {responses[1] || 'friend'}. 
+                Let's start this journey together. 💜
+              </p>
+              <div className="mt-6">
+                <div className="w-16 h-1 bg-gradient-to-r from-purple-300 to-pink-300 mx-auto rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
     </div>
   );
