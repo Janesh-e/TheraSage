@@ -88,33 +88,42 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
     return () => clearTimeout(timer);
   }, []);
 
-  const showNextQuestion = () => {
-    if (currentStep < questions.length) {
-      setShowTyping(true);
-      setShowInput(false);
-      
-      setTimeout(() => {
-        setShowTyping(false);
-        setChatHistory(prev => [...prev, {
-          type: 'question',
-          content: questions[currentStep].text,
-          step: currentStep
-        }]);
-        
-        // Show input for questions that need it, but not for greeting or completion
-        if (questions[currentStep].hasInput || questions[currentStep].type === 'buttons') {
-          setTimeout(() => {
-            setShowInput(true);
-          }, 500);
-        } else if (questions[currentStep].type === 'greeting') {
-          // Auto-advance from greeting after a delay
-          setTimeout(() => {
-            setCurrentStep(prev => prev + 1);
-            showNextQuestion();
-          }, 2000);
-        }
-      }, 1500 + Math.random() * 1000); // Variable typing time for natural feel
+  useEffect(() => {
+    // Handle step changes
+    if (currentStep > 0 && currentStep < questions.length) {
+      const timer = setTimeout(() => {
+        showNextQuestion();
+      }, 800);
+      return () => clearTimeout(timer);
     }
+  }, [currentStep]);
+
+  const showNextQuestion = () => {
+    if (currentStep >= questions.length) return;
+    
+    setShowTyping(true);
+    setShowInput(false);
+    
+    setTimeout(() => {
+      setShowTyping(false);
+      setChatHistory(prev => [...prev, {
+        type: 'question',
+        content: questions[currentStep].text,
+        step: currentStep
+      }]);
+      
+      // Show input for questions that need it, or auto-advance for greeting
+      if (questions[currentStep].type === 'greeting') {
+        // Auto-advance from greeting after a delay
+        setTimeout(() => {
+          setCurrentStep(prev => prev + 1);
+        }, 2000);
+      } else if (questions[currentStep].hasInput || questions[currentStep].type === 'buttons') {
+        setTimeout(() => {
+          setShowInput(true);
+        }, 500);
+      }
+    }, 1500 + Math.random() * 1000); // Variable typing time for natural feel
   };
 
   const handleResponse = (response: string) => {
@@ -127,11 +136,6 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
 
     setShowInput(false);
     setCurrentStep(prev => prev + 1);
-    
-    // Show next question after a brief pause
-    setTimeout(() => {
-      showNextQuestion();
-    }, 800);
   };
 
   const handleSkip = () => {
