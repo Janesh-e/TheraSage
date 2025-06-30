@@ -14,6 +14,7 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
   const [showTyping, setShowTyping] = useState(false);
   const [responses, setResponses] = useState<Record<number, string>>({});
   const [chatHistory, setChatHistory] = useState<Array<{ type: 'question' | 'answer', content: string, step: number }>>([]);
+  const [showInput, setShowInput] = useState(false);
 
   const questions = [
     {
@@ -90,6 +91,7 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
   const showNextQuestion = () => {
     if (currentStep < questions.length) {
       setShowTyping(true);
+      setShowInput(false);
       
       setTimeout(() => {
         setShowTyping(false);
@@ -98,6 +100,19 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
           content: questions[currentStep].text,
           step: currentStep
         }]);
+        
+        // Show input for questions that need it, but not for greeting or completion
+        if (questions[currentStep].hasInput || questions[currentStep].type === 'buttons') {
+          setTimeout(() => {
+            setShowInput(true);
+          }, 500);
+        } else if (questions[currentStep].type === 'greeting') {
+          // Auto-advance from greeting after a delay
+          setTimeout(() => {
+            setCurrentStep(prev => prev + 1);
+            showNextQuestion();
+          }, 2000);
+        }
       }, 1500 + Math.random() * 1000); // Variable typing time for natural feel
     }
   };
@@ -110,6 +125,7 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
       step: currentStep
     }]);
 
+    setShowInput(false);
     setCurrentStep(prev => prev + 1);
     
     // Show next question after a brief pause
@@ -170,7 +186,7 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
           {showTyping && <TypingIndicator />}
         </div>
 
-        {!showTyping && currentStep < questions.length && currentQuestion && (
+        {showInput && currentQuestion && (
           <div className="animate-fade-in">
             {currentQuestion.type === 'input' && (
               <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100">
