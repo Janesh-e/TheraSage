@@ -60,14 +60,21 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     // Debug FormData contents
     console.log('FormData contents:');
     for (const [key, value] of formData.entries()) {
-      if (value instanceof File || value instanceof Blob) {
+      const formValue = value as FormDataEntryValue;
+      if (formValue instanceof File) {
         console.log(`${key}:`, {
-          size: value.size,
-          type: value.type,
-          name: value instanceof File ? value.name : 'blob'
+          size: formValue.size,
+          type: formValue.type,
+          name: formValue.name
+        });
+      } else if (typeof formValue === 'object' && formValue && 'size' in formValue && 'type' in formValue) {
+        console.log(`${key}:`, {
+          size: (formValue as Blob).size,
+          type: (formValue as Blob).type,
+          name: 'blob'
         });
       } else {
-        console.log(`${key}:`, value);
+        console.log(`${key}:`, formValue);
       }
     }
 
