@@ -1,7 +1,7 @@
 
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Square } from "lucide-react";
+import { Mic, Square } from "lucide-react";
 
 interface VoiceRecorderProps {
   onRecordingComplete: (audioBlob: Blob) => void;
@@ -14,9 +14,12 @@ const VoiceRecorder = ({ onRecordingComplete, disabled }: VoiceRecorderProps) =>
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const startRecording = async () => {
     try {
+      console.log('Starting voice recording...');
+      
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           sampleRate: 16000,
@@ -26,36 +29,78 @@ const VoiceRecorder = ({ onRecordingComplete, disabled }: VoiceRecorderProps) =>
         } 
       });
       
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
+      streamRef.current = stream;
+      console.log('Got media stream:', stream);
       
+      // Use a more compatible MIME type
+      let mimeType = 'audio/webm';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+        mimeType = 'audio/wav';
+      }
+      
+      console.log('Using MIME type:', mimeType);
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       
       mediaRecorder.ondataavailable = (event) => {
+        console.log('Data available:', event.data.size);
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
       
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        console.log('Recording stopped, chunks:', audioChunksRef.current.length);
         
-        // Convert to WAV format using Web Audio API
+        if (audioChunksRef.current.length === 0) {
+          console.error('No audio chunks recorded');
+          alert('No audio was recorded. Please try again.');
+          return;
+        }
+        
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        console.log('Created audio blob:', audioBlob.size, 'bytes');
+        
+        if (audioBlob.size === 0) {
+          console.error('Audio blob is empty');
+          alert('Recording failed - no audio data captured.');
+          return;
+        }
+        
+        // Convert to WAV format
         try {
           const wavBlob = await convertToWav(audioBlob);
+          console.log('Converted to WAV:', wavBlob.size, 'bytes');
           onRecordingComplete(wavBlob);
         } catch (error) {
           console.error('Error converting to WAV:', error);
-          onRecordingComplete(audioBlob); // Fallback to original format
+          // Fallback to original format
+          console.log('Using original format as fallback');
+          onRecordingComplete(audioBlob);
         }
         
-        // Clean up
-        stream.getTracks().forEach(track => track.stop());
+        // Clean up stream
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => {
+            track.stop();
+            console.log('Stopped track:', track.kind);
+          });
+          streamRef.current = null;
+        }
       };
       
-      mediaRecorder.start();
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+      };
+      
+      mediaRecorder.start(1000); // Collect data every second
+      console.log('MediaRecorder started');
       setIsRecording(true);
       setRecordingTime(0);
       
@@ -66,13 +111,17 @@ const VoiceRecorder = ({ onRecordingComplete, disabled }: VoiceRecorderProps) =>
       
     } catch (error) {
       console.error('Error accessing microphone:', error);
-      alert('Unable to access microphone. Please check your permissions.');
+      alert('Unable to access microphone. Please check your permissions and try again.');
     }
   };
 
   const stopRecording = () => {
+    console.log('Stopping recording...');
+    
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+      if (mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
       setIsRecording(false);
       
       if (timerRef.current) {
@@ -83,37 +132,60 @@ const VoiceRecorder = ({ onRecordingComplete, disabled }: VoiceRecorderProps) =>
   };
 
   const convertToWav = async (audioBlob: Blob): Promise<Blob> => {
+    console.log('Converting to WAV...');
+    
     const arrayBuffer = await audioBlob.arrayBuffer();
-    const audioContext = new AudioContext({ sampleRate: 16000 });
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ 
+      sampleRate: 16000 
+    });
     
-    // Convert to mono if stereo
-    const channels = audioBuffer.numberOfChannels;
-    const length = audioBuffer.length;
-    const sampleRate = audioBuffer.sampleRate;
-    
-    let audioData;
-    if (channels === 1) {
-      audioData = audioBuffer.getChannelData(0);
-    } else {
-      // Mix stereo to mono
-      const left = audioBuffer.getChannelData(0);
-      const right = audioBuffer.getChannelData(1);
-      audioData = new Float32Array(length);
-      for (let i = 0; i < length; i++) {
-        audioData[i] = (left[i] + right[i]) / 2;
+    try {
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      console.log('Audio decoded:', {
+        channels: audioBuffer.numberOfChannels,
+        length: audioBuffer.length,
+        sampleRate: audioBuffer.sampleRate,
+        duration: audioBuffer.duration
+      });
+      
+      // Convert to mono 16kHz
+      const channels = audioBuffer.numberOfChannels;
+      const length = audioBuffer.length;
+      const sampleRate = 16000;
+      
+      let audioData;
+      if (channels === 1) {
+        audioData = audioBuffer.getChannelData(0);
+      } else {
+        // Mix stereo to mono
+        const left = audioBuffer.getChannelData(0);
+        const right = audioBuffer.getChannelData(1);
+        audioData = new Float32Array(length);
+        for (let i = 0; i < length; i++) {
+          audioData[i] = (left[i] + right[i]) / 2;
+        }
       }
+      
+      // Resample if needed (simplified - assumes same sample rate for now)
+      const resampledData = audioData;
+      
+      // Convert float32 to int16
+      const int16Data = new Int16Array(resampledData.length);
+      for (let i = 0; i < resampledData.length; i++) {
+        const sample = Math.max(-1, Math.min(1, resampledData[i]));
+        int16Data[i] = sample * 32767;
+      }
+      
+      // Create WAV file
+      const wavBuffer = createWavFile(int16Data, sampleRate);
+      const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+      
+      console.log('WAV conversion complete:', wavBlob.size, 'bytes');
+      return wavBlob;
+      
+    } finally {
+      await audioContext.close();
     }
-    
-    // Convert float32 to int16
-    const int16Data = new Int16Array(length);
-    for (let i = 0; i < length; i++) {
-      int16Data[i] = Math.max(-32768, Math.min(32767, audioData[i] * 32767));
-    }
-    
-    // Create WAV file
-    const wavBuffer = createWavFile(int16Data, sampleRate);
-    return new Blob([wavBuffer], { type: 'audio/wav' });
   };
 
   const createWavFile = (audioData: Int16Array, sampleRate: number): ArrayBuffer => {
@@ -132,12 +204,12 @@ const VoiceRecorder = ({ onRecordingComplete, disabled }: VoiceRecorderProps) =>
     writeString(8, 'WAVE');
     writeString(12, 'fmt ');
     view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // Mono
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
+    view.setUint32(28, sampleRate * 2, true); // Byte rate
+    view.setUint16(32, 2, true); // Block align
+    view.setUint16(34, 16, true); // Bits per sample
     writeString(36, 'data');
     view.setUint32(40, audioData.length * 2, true);
     

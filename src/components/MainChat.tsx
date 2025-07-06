@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Send, Paperclip } from "lucide-react";
@@ -39,15 +38,37 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   }, [messages, isTyping]);
 
   const sendToBackend = async (text?: string, audioFile?: Blob) => {
+    console.log('Sending to backend:', { hasText: !!text, hasAudio: !!audioFile });
+    
     const formData = new FormData();
     formData.append('user_id', 'user_123'); // You can make this dynamic
     
     if (text) {
       formData.append('text', text);
+      console.log('Added text to form:', text);
     }
     
     if (audioFile) {
+      console.log('Adding audio file:', {
+        size: audioFile.size,
+        type: audioFile.type,
+        name: 'recording.wav'
+      });
       formData.append('file', audioFile, 'recording.wav');
+    }
+
+    // Debug FormData contents
+    console.log('FormData contents:');
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File || value instanceof Blob) {
+        console.log(`${key}:`, {
+          size: value.size,
+          type: value.type,
+          name: value instanceof File ? value.name : 'blob'
+        });
+      } else {
+        console.log(`${key}:`, value);
+      }
     }
 
     try {
@@ -56,11 +77,16 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         body: formData,
       });
 
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
 
       const result = await response.json();
+      console.log('Backend response:', result);
       return result;
     } catch (error) {
       console.error('Error sending to backend:', error);
@@ -107,12 +133,26 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   };
 
   const handleVoiceRecording = async (audioBlob: Blob) => {
-    if (isProcessing) return;
+    console.log('Voice recording received:', {
+      size: audioBlob.size,
+      type: audioBlob.type
+    });
+    
+    if (isProcessing) {
+      console.log('Already processing, ignoring voice input');
+      return;
+    }
+
+    if (audioBlob.size === 0) {
+      console.error('Received empty audio blob');
+      alert('Recording failed - no audio data. Please try again.');
+      return;
+    }
 
     // Add a placeholder message for the voice input
     const userMessage = {
       type: 'user' as const,
-      content: "🎤 Voice message",
+      content: "🎤 Processing voice message...",
       timestamp: new Date()
     };
 
@@ -121,15 +161,24 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     setIsTyping(true);
 
     try {
+      console.log('Sending voice recording to backend...');
       const response = await sendToBackend(undefined, audioBlob);
       
       setIsTyping(false);
       
       // If there's transcribed text, update the user message
-      if (response.text) {
+      if (response.text && response.text.trim()) {
+        console.log('Received transcription:', response.text);
         setMessages(prev => prev.map((msg, index) => 
           index === prev.length - 1 && msg.type === 'user' 
             ? { ...msg, content: response.text }
+            : msg
+        ));
+      } else {
+        console.log('No transcription received or empty text');
+        setMessages(prev => prev.map((msg, index) => 
+          index === prev.length - 1 && msg.type === 'user' 
+            ? { ...msg, content: "🎤 Voice message (no transcription)" }
             : msg
         ));
       }
@@ -141,10 +190,19 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       };
       setMessages(prev => [...prev, botResponse]);
     } catch (error) {
+      console.error('Voice processing error:', error);
       setIsTyping(false);
+      
+      // Update the placeholder message to show error
+      setMessages(prev => prev.map((msg, index) => 
+        index === prev.length - 1 && msg.type === 'user' 
+          ? { ...msg, content: "🎤 Voice message (processing failed)" }
+          : msg
+      ));
+      
       const errorResponse = {
         type: 'bot' as const,
-        content: "I'm sorry, I couldn't process your voice message. Please try again. 💜",
+        content: "I'm sorry, I couldn't process your voice message. Please try again or type your message instead. 💜",
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorResponse]);
