@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Form, File, Body
+from fastapi import FastAPI, UploadFile, Form, File, Body, Depends, HTTPException, status
 import os
 from stt_utils import transcribe_audio
 from vad_utils import is_speech
@@ -11,6 +11,11 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 from pydub import AudioSegment
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from models import User
+from schemas import UserCreate, UserLogin
+from db import SessionLocal, engine, get_db
+
 
 app = FastAPI()
 
@@ -24,6 +29,30 @@ app.add_middleware(
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+@app.post("/signup/")
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    new_user = User(
+        name=user.name,
+        email=user.email,
+        hashed_password=User.hash_password(user.password)
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"message": "User created successfully"}
+
+@app.post("/login/")
+def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == credentials.email).first()
+    if not user or not User.verify_password(credentials.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    return {"message": "Login successful", "user_id": user.id}
 
 @app.post("/stt/")
 async def speech_to_text(file: UploadFile = File(...)):
