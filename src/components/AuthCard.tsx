@@ -8,9 +8,10 @@ import { ArrowLeft } from "lucide-react";
 interface AuthCardProps {
   onComplete: () => void;
   onBack: () => void;
+  onSkipToChat?: () => void;
 }
 
-const AuthCard = ({ onComplete, onBack }: AuthCardProps) => {
+const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
   const [isSignUp, setIsSignUp] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +39,20 @@ const AuthCard = ({ onComplete, onBack }: AuthCardProps) => {
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
+
+        {/* Skip button for testing */}
+        {onSkipToChat && (
+          <div className="mb-4 text-center">
+            <Button
+              onClick={onSkipToChat}
+              variant="outline"
+              size="sm"
+              className="text-purple-600 border-purple-200 hover:bg-purple-50"
+            >
+              Skip to Chat (Testing)
+            </Button>
+          </div>
+        )}
 
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center pb-4">

@@ -1,10 +1,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Mic, Paperclip } from "lucide-react";
+import { Send, Paperclip } from "lucide-react";
 import ChatBubble from "@/components/ChatBubble";
 import TypingIndicator from "@/components/TypingIndicator";
 import AppSidebar from "@/components/AppSidebar";
+import VoiceRecorder from "@/components/VoiceRecorder";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 interface MainChatProps {
@@ -15,6 +16,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const [messages, setMessages] = useState<Array<{ type: 'user' | 'bot', content: string, timestamp: Date }>>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const userName = userResponses[1] || 'friend';
   const botName = userResponses[2] || 'TheraSage';
@@ -36,8 +38,38 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
+  const sendToBackend = async (text?: string, audioFile?: Blob) => {
+    const formData = new FormData();
+    formData.append('user_id', 'user_123'); // You can make this dynamic
+    
+    if (text) {
+      formData.append('text', text);
+    }
+    
+    if (audioFile) {
+      formData.append('file', audioFile, 'recording.wav');
+    }
+
+    try {
+      const response = await fetch('http://localhost:8000/process/', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Error sending to backend:', error);
+      throw error;
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || isProcessing) return;
 
     const userMessage = {
       type: 'user' as const,
@@ -46,19 +78,79 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue("");
+    setIsProcessing(true);
     setIsTyping(true);
 
-    // Simulate bot response
-    setTimeout(() => {
+    try {
+      const response = await sendToBackend(currentInput);
+      
       setIsTyping(false);
       const botResponse = {
         type: 'bot' as const,
-        content: "Thank you for sharing that with me. I'm here to listen and support you. How does that make you feel? 🌸",
+        content: response.response || response.message || "I'm here to listen and support you. 🌸",
         timestamp: new Date()
       };
       setMessages(prev => [...prev, botResponse]);
-    }, 1500 + Math.random() * 1000);
+    } catch (error) {
+      setIsTyping(false);
+      const errorResponse = {
+        type: 'bot' as const,
+        content: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment. 💜",
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleVoiceRecording = async (audioBlob: Blob) => {
+    if (isProcessing) return;
+
+    // Add a placeholder message for the voice input
+    const userMessage = {
+      type: 'user' as const,
+      content: "🎤 Voice message",
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setIsProcessing(true);
+    setIsTyping(true);
+
+    try {
+      const response = await sendToBackend(undefined, audioBlob);
+      
+      setIsTyping(false);
+      
+      // If there's transcribed text, update the user message
+      if (response.text) {
+        setMessages(prev => prev.map((msg, index) => 
+          index === prev.length - 1 && msg.type === 'user' 
+            ? { ...msg, content: response.text }
+            : msg
+        ));
+      }
+      
+      const botResponse = {
+        type: 'bot' as const,
+        content: response.response || response.message || "I heard you. Let me think about that. 🌸",
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, botResponse]);
+    } catch (error) {
+      setIsTyping(false);
+      const errorResponse = {
+        type: 'bot' as const,
+        content: "I'm sorry, I couldn't process your voice message. Please try again. 💜",
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -124,6 +216,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                     placeholder={`Share your thoughts with ${botName}...`}
                     className="w-full p-4 rounded-2xl resize-none focus:outline-none bg-transparent max-h-32"
                     rows={1}
+                    disabled={isProcessing}
                     style={{
                       minHeight: '60px',
                       height: 'auto'
@@ -134,16 +227,17 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                       <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
                         <Paperclip size={18} />
                       </Button>
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
-                        <Mic size={18} />
-                      </Button>
+                      <VoiceRecorder 
+                        onRecordingComplete={handleVoiceRecording}
+                        disabled={isProcessing}
+                      />
                     </div>
                     <span className="text-xs text-gray-400">Press Enter to send, Shift+Enter for new line</span>
                   </div>
                 </div>
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!inputValue.trim()}
+                  disabled={!inputValue.trim() || isProcessing}
                   className="bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white rounded-2xl p-4 h-auto disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105"
                 >
                   <Send size={20} />

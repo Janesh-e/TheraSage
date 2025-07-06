@@ -1,10 +1,10 @@
-
 import { useState } from "react";
 import AuthCard from "@/components/AuthCard";
 import OnboardingChat from "@/components/OnboardingChat";
+import MainChat from "@/components/MainChat";
 
 const Index = () => {
-  const [currentView, setCurrentView] = useState<'landing' | 'auth' | 'onboarding'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'auth' | 'onboarding' | 'chat'>('landing');
   const [isSignedUp, setIsSignedUp] = useState(false);
 
   const handleStartChat = () => {
@@ -20,12 +20,21 @@ const Index = () => {
     setCurrentView('onboarding');
   };
 
+  const handleSkipToChat = () => {
+    setIsSignedUp(true);
+    setCurrentView('chat');
+  };
+
   if (currentView === 'auth') {
-    return <AuthCard onComplete={handleAuthComplete} onBack={() => setCurrentView('landing')} />;
+    return <AuthCard onComplete={handleAuthComplete} onBack={() => setCurrentView('landing')} onSkipToChat={handleSkipToChat} />;
   }
 
   if (currentView === 'onboarding') {
     return <OnboardingChat isSignedUp={isSignedUp} />;
+  }
+
+  if (currentView === 'chat') {
+    return <MainChat userResponses={{}} />;
   }
 
   return (
