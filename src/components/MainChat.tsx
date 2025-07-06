@@ -5,6 +5,7 @@ import ChatBubble from "@/components/ChatBubble";
 import TypingIndicator from "@/components/TypingIndicator";
 import AppSidebar from "@/components/AppSidebar";
 import VoiceRecorder from "@/components/VoiceRecorder";
+import ReadAloudToggle from "@/components/ReadAloudToggle";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 interface MainChatProps {
@@ -16,9 +17,38 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [readAloudEnabled, setReadAloudEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const userName = userResponses[1] || 'friend';
   const botName = userResponses[2] || 'TheraSage';
+
+  // Speech synthesis function
+  const speakText = (text: string) => {
+    if (!readAloudEnabled || !('speechSynthesis' in window)) return;
+    
+    // Cancel any ongoing speech
+    speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    utterance.volume = 0.8;
+    
+    // Try to use a pleasant voice if available
+    const voices = speechSynthesis.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.name.includes('Female') || 
+      voice.name.includes('Samantha') ||
+      voice.name.includes('Karen') ||
+      voice.lang.startsWith('en')
+    );
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+    
+    speechSynthesis.speak(utterance);
+  };
 
   useEffect(() => {
     // Welcome message from the bot
@@ -126,6 +156,9 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, botResponse]);
+      
+      // Read aloud the bot's response
+      speakText(botResponse.content);
     } catch (error) {
       setIsTyping(false);
       const errorResponse = {
@@ -134,6 +167,9 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorResponse]);
+      
+      // Read aloud the error response too
+      speakText(errorResponse.content);
     } finally {
       setIsProcessing(false);
     }
@@ -196,6 +232,9 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, botResponse]);
+      
+      // Read aloud the bot's response to voice input
+      speakText(botResponse.content);
     } catch (error) {
       console.error('Voice processing error:', error);
       setIsTyping(false);
@@ -213,6 +252,9 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorResponse]);
+      
+      // Read aloud the error response
+      speakText(errorResponse.content);
     } finally {
       setIsProcessing(false);
     }
@@ -243,9 +285,15 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                   <p className="text-sm text-gray-500">Always here for you</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm text-gray-600">Online</span>
+              <div className="flex items-center space-x-4">
+                <ReadAloudToggle 
+                  enabled={readAloudEnabled}
+                  onToggle={setReadAloudEnabled}
+                />
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-gray-600">Online</span>
+                </div>
               </div>
             </div>
           </div>
