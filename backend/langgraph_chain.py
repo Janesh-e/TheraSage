@@ -5,6 +5,15 @@ from typing import TypedDict
 from cbt_utils import run_cbt_analysis
 from session_manager import SessionManager
 from journal_utils import save_journal
+
+from langgraph.graph import StateGraph, END
+from emotion_utils import detect_emotion
+from llm_utils import generate_response
+from typing import TypedDict
+from cbt_utils import run_cbt_analysis
+from session_manager import SessionManager
+from journal_utils import save_journal
+from pattern_utils import PatternRecognizer
 from langchain_core.runnables import RunnableLambda
 from datetime import datetime
 
@@ -22,6 +31,10 @@ class ChatState(TypedDict):
     should_provide_cbt: bool
     context_depth: int
     conversation_phase: str
+    patterns_detected: dict
+    should_surface_patterns: bool
+    pattern_summary: str
+    pattern_recommendations: list[str]
 
 # Define state keys
 def get_emotion_node(state: ChatState):
@@ -37,6 +50,10 @@ def generate_response_node(state: ChatState):
     emotion = state["emotion"]
     phase = state["conversation_phase"]
     should_provide_cbt = state.get("should_provide_cbt", False)
+
+    # Check if we should include pattern insights
+    pattern_summary = state.get("pattern_summary")
+    patterns_detected = state.get("patterns_detected", {})
     
     # Pass CBT info if available
     cbt_info = None
@@ -46,12 +63,21 @@ def generate_response_node(state: ChatState):
             "cbt_tool": state.get("cbt_tool")
         }
     
+    # Pass pattern info if available
+    pattern_info = None
+    if pattern_summary and patterns_detected:
+        pattern_info = {
+            "summary": pattern_summary,
+            "recommendations": patterns_detected.get("recommendations", [])
+        }
+
     reply = generate_response(
         user_id=user_id,
         user_input=user_input,
         emotion=emotion,
         conversation_phase=phase,
-        cbt_info=cbt_info
+        cbt_info=cbt_info,
+        pattern_info=pattern_info
     )
     
     return {"response": reply}
@@ -87,8 +113,35 @@ def assess_context_depth_node(state: ChatState) -> dict:
         "session_messages": analysis["recent_messages"]
     }
 
+def pattern_recognition_node(state: ChatState) -> dict:
+    """Node to analyze patterns and determine if they should be surfaced"""
+    user_id = state["user_id"]
+    
+    recognizer = PatternRecognizer()
+    patterns = recognizer.analyze_emotional_patterns(user_id, days_back=14)
+    
+    should_surface = recognizer.should_surface_pattern(patterns)
+    pattern_summary = recognizer.get_pattern_summary(patterns) if should_surface else None
+    
+    return {
+        "patterns_detected": patterns,
+        "should_surface_patterns": should_surface,
+        "pattern_summary": pattern_summary
+    }
+
+def should_surface_patterns(state: ChatState) -> str:
+    """Condition function to determine if patterns should be surfaced"""
+    return "surface_patterns" if state.get("should_surface_patterns", False) else "continue"
+
 def cbt_analysis_node(state: ChatState) -> dict:
     """Runs CBT analysis when we have enough context"""
+    should_provide_cbt = state.get("should_provide_cbt", False)
+    
+    if not should_provide_cbt:
+        return {
+            "distortion": None,
+            "cbt_tool": None
+        }
     user_input = state["text"]
     session_messages = state.get("session_messages", [])
     
@@ -129,6 +182,7 @@ def journal_writing_node(state: ChatState) -> dict:
     """Journals significant interactions and CBT progress"""
     user_id = state["user_id"]
     should_provide_cbt = state.get("should_provide_cbt", False)
+    patterns_detected = state.get("patterns_detected", {})
     
     if should_provide_cbt:
         # Journal CBT interaction
@@ -144,6 +198,23 @@ User's situation:
 Context depth: {state.get('context_depth', 0)}
 """
         save_journal(user_id, journal_entry, entry_type="cbt_session")
+    elif patterns_detected and state.get("should_surface_patterns", False):
+        # Journal pattern recognition
+        journal_entry = f"""🔍 Pattern Recognition Summary - {datetime.now().strftime('%Y-%m-%d %H:%M')}
+        
+Current emotion: {state.get('emotion', 'N/A')} (confidence: {state.get('confidence', 0):.2f})
+
+Patterns detected:
+- Recurring emotions: {list(patterns_detected.get('recurring_emotions', {}).keys())}
+- Emotional cycles: {len(patterns_detected.get('emotional_cycles', []))} cycles found
+- Trigger correlations: {len(patterns_detected.get('trigger_emotion_correlations', {}))} correlations
+
+Pattern summary: {state.get('pattern_summary', 'None')}
+
+Analysis period: {patterns_detected.get('analysis_period', 'N/A')}
+Total emotional events: {patterns_detected.get('total_emotional_events', 0)}
+"""
+        save_journal(user_id, journal_entry, entry_type="pattern_recognition")
     else:
         # Journal emotional check-in
         journal_entry = f"""💭 Emotional Check-in - {datetime.now().strftime('%Y-%m-%d %H:%M')}
@@ -161,6 +232,17 @@ def should_analyze_cbt(state: ChatState) -> str:
     """Determines if we should run CBT analysis"""
     return "analyze_cbt" if state.get("should_provide_cbt", False) else "skip_cbt"
 
+def should_check_patterns(state: ChatState) -> str:
+    """Determines if we should check for patterns"""
+    # Check patterns every 3rd conversation or when context depth is high
+    context_depth = state.get("context_depth", 0)
+    conversation_phase = state.get("conversation_phase", "exploring")
+    
+    # Check patterns when we have enough context or periodically
+    if context_depth >= 2 or conversation_phase in ["building_context", "ready_for_cbt"]:
+        return "check_patterns"
+    return "skip_patterns"
+
 def should_journal(state: ChatState) -> str:
     """Determines if we should journal this interaction"""
     # Journal CBT sessions and significant emotional interactions
@@ -177,6 +259,7 @@ builder = StateGraph(ChatState)
 # Add nodes
 builder.add_node("emotion_detection", get_emotion_node)
 builder.add_node("assess_context", assess_context_depth_node)
+builder.add_node("pattern_recognition", pattern_recognition_node)
 builder.add_node("cbt_analysis", cbt_analysis_node)
 builder.add_node("generate_response", generate_response_node)
 builder.add_node("journal_writing", journal_writing_node)
@@ -186,6 +269,26 @@ builder.set_entry_point("emotion_detection")
 
 # Define the flow
 builder.add_edge("emotion_detection", "assess_context")
+
+# Conditional pattern checking
+builder.add_conditional_edges(
+    "assess_context",
+    should_check_patterns,
+    {
+        "check_patterns": "pattern_recognition",
+        "skip_patterns": "generate_response"  # Skip both patterns and CBT
+    }
+)
+
+# From pattern recognition, check if we should surface patterns
+builder.add_conditional_edges(
+    "pattern_recognition",
+    should_surface_patterns,
+    {
+        "surface_patterns": "generate_response",  # Skip CBT if surfacing patterns
+        "continue": "cbt_analysis"  # Continue to CBT Analysis
+    }
+)
 
 # Conditional CBT analysis based on context depth
 builder.add_conditional_edges(

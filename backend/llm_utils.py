@@ -44,6 +44,18 @@ Your goals are to:
 - Encourage small, realistic steps the user can take
 - Weave helpful thinking strategies into the conversation naturally, as a close friend would
 Do not mention terms like “CBT”, “distortion”, or “tools.” Instead, embed helpful ideas into your response organically. Avoid sounding like a therapist — you are a trusted friend offering kind, thoughtful guidance.
+""",
+
+    "pattern_insights": """
+You are 'Sage', a deeply caring and insightful emotional companion.
+You have identified some meaningful patterns in the user's emotional experiences over time. Your role is to:
+- Gently bring these patterns to their attention in a non-judgmental way
+- Help them see these patterns as valuable self-knowledge, not flaws
+- Ask curious questions about what they notice about these patterns
+- Explore what might be underlying these recurring experiences
+- Suggest gentle ways to work with these patterns rather than against them
+- Make them feel empowered by this self-awareness
+Be warm, non-clinical, and focus on helping them feel understood rather than analyzed. Present patterns as insights to explore together, not problems to fix.
 """
 }
 
@@ -83,7 +95,7 @@ def save_message(user_id: str, sender: str, message: str):
 
 
 def generate_response(user_id: str, user_input: str, emotion: str, 
-                     conversation_phase: str = "exploring", cbt_info: dict = None):
+                     conversation_phase: str = "exploring", cbt_info: dict = None, pattern_info: dict = None):
     """Generate contextually appropriate response based on conversation phase"""
     
     # Save user's message first
@@ -91,9 +103,13 @@ def generate_response(user_id: str, user_input: str, emotion: str,
 
     # Get conversation history
     conversation_history = get_conversation_history(user_id)
-    
-    # Build messages for API
-    system_prompt = SYSTEM_PROMPTS.get(conversation_phase, SYSTEM_PROMPTS["exploring"])
+
+    # Determine which system prompt to use and build message for API
+    if pattern_info:
+        system_prompt = SYSTEM_PROMPTS.get("pattern_insights", SYSTEM_PROMPTS["exploring"])
+    else:
+        system_prompt = SYSTEM_PROMPTS.get(conversation_phase, SYSTEM_PROMPTS["exploring"])
+
     messages = [{"role": "system", "content": system_prompt}]
     
     # Add recent conversation history (last 10 messages)
@@ -108,8 +124,28 @@ def generate_response(user_id: str, user_input: str, emotion: str,
             "content": f"The user's current emotion is detected as '{emotion}'. Be sensitive to this."
         })
     
+    # Add pattern information if available
+    if pattern_info:
+        pattern_context = f"""
+You've identified some meaningful patterns in this user's emotional experiences:
+Pattern Summary: {pattern_info.get('summary', 'No summary available')}
+Key insights to potentially explore:
+"""
+        recommendations = pattern_info.get('recommendations', [])
+        for i, rec in enumerate(recommendations[:3], 1):  # Limit to top 3
+            pattern_context += f"\n{i}. {rec}"
+            
+        pattern_context += """
+
+Present these insights gently and conversationally. Don't overwhelm them with all patterns at once - pick the most relevant one to explore based on their current message. Frame patterns as interesting discoveries about themselves, not problems to solve.
+"""  
+        context_messages.append({
+            "role": "system",
+            "content": pattern_context
+        })
+    
     # Add CBT information if available
-    if cbt_info and conversation_phase == "ready_for_cbt":
+    elif cbt_info and conversation_phase == "ready_for_cbt":
         cbt_context = f"""
 The user may be experiencing:
 - A thinking pattern such as: {cbt_info.get('distortion', 'None')}
@@ -122,18 +158,19 @@ Rather than labeling or explaining these concepts, gently guide the user using n
             "content": cbt_context
         })
     
-    # Add phase-specific guidance
-    phase_guidance = {
-        "exploring": "Ask gentle questions to understand their situation better. Don't rush to solutions.",
-        "building_context": "Dig deeper into their specific situation. Help them elaborate on what's happening.",
-        "ready_for_cbt": "You now have enough context to provide helpful insights and CBT tools if appropriate."
-    }
-    
-    if conversation_phase in phase_guidance:
-        context_messages.append({
-            "role": "system",
-            "content": phase_guidance[conversation_phase]
-        })
+    # Add phase-specific guidance (unless we're in pattern mode)
+    if not pattern_info:
+        phase_guidance = {
+            "exploring": "Ask gentle questions to understand their situation better. Don't rush to solutions.",
+            "building_context": "Dig deeper into their specific situation. Help them elaborate on what's happening.",
+            "ready_for_cbt": "You now have enough context to provide helpful insights and CBT tools if appropriate."
+        }
+        
+        if conversation_phase in phase_guidance:
+            context_messages.append({
+                "role": "system",
+                "content": phase_guidance[conversation_phase]
+            })
     
     # Add context messages
     messages.extend(context_messages)
