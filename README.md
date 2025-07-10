@@ -75,3 +75,7 @@ project-root/
 
 ---
 
+## System Architecture
+
+To view the complete system architecture, [click here](system_architecture/System_Architecture.md).
+
