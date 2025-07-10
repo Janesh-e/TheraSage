@@ -24,7 +24,7 @@ const navigationItems = [
   },
   {
     title: "Chat", 
-    url: "/", 
+    url: "/chat", 
     icon: MessageSquare,
     description: "Talk with TheraSage"
   },

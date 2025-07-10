@@ -7,6 +7,7 @@ import AppSidebar from "@/components/AppSidebar";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import ReadAloudToggle from "@/components/ReadAloudToggle";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { cleanTextForSpeech } from "@/utils/textUtils";
 
 interface MainChatProps {
   userResponses: Record<number, string>;
@@ -22,14 +23,19 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const userName = userResponses[1] || 'friend';
   const botName = userResponses[2] || 'TheraSage';
 
-  // Speech synthesis function
+  // Speech synthesis function with emoji cleaning
   const speakText = (text: string) => {
     if (!readAloudEnabled || !('speechSynthesis' in window)) return;
     
     // Cancel any ongoing speech
     speechSynthesis.cancel();
     
-    const utterance = new SpeechSynthesisUtterance(text);
+    // Clean the text to remove emojis and special characters
+    const cleanedText = cleanTextForSpeech(text);
+    
+    if (!cleanedText.trim()) return; // Don't speak if no text remains after cleaning
+    
+    const utterance = new SpeechSynthesisUtterance(cleanedText);
     utterance.rate = 0.9;
     utterance.pitch = 1;
     utterance.volume = 0.8;
@@ -157,7 +163,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       };
       setMessages(prev => [...prev, botResponse]);
       
-      // Read aloud the bot's response
+      // Read aloud the bot's response with cleaned text
       speakText(botResponse.content);
     } catch (error) {
       setIsTyping(false);
