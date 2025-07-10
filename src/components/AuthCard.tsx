@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthCardProps {
-  onComplete: () => void;
+  onComplete: (isReturningUser: boolean) => void;
   onBack: () => void;
   onSkipToChat?: () => void;
 }
@@ -55,7 +54,8 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
           localStorage.setItem('user_id', data.user_id.toString());
         }
         
-        onComplete();
+        // Pass whether this is a returning user (login) or new user (signup)
+        onComplete(!isSignUp);
       } else {
         toast({
           title: "Error",

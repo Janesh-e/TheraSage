@@ -15,9 +15,15 @@ const Index = () => {
     setCurrentView('auth');
   };
 
-  const handleAuthComplete = () => {
+  const handleAuthComplete = (isReturningUser: boolean) => {
     setIsSignedUp(true);
-    setCurrentView('onboarding');
+    // If user is logging in (returning user), skip onboarding
+    if (isReturningUser) {
+      setCurrentView('chat');
+    } else {
+      // If user is signing up (new user), go to onboarding
+      setCurrentView('onboarding');
+    }
   };
 
   const handleSkipToChat = () => {
