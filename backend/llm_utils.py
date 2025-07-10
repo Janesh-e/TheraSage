@@ -3,8 +3,7 @@ from memory_store import conversation_memory
 from db import SessionLocal
 from models import ConversationMessage
 from datetime import datetime
-
-OPENROUTER_API_KEY = "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"
+from config import OPENROUTER_API_KEY
 
 # Different system prompts for different conversation phases
 SYSTEM_PROMPTS = {
