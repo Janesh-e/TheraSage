@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthCardProps {
   onComplete: () => void;
@@ -16,16 +17,70 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would handle actual authentication
-    onComplete();
+    setIsLoading(true);
+
+    try {
+      const endpoint = isSignUp ? '/signup/' : '/login/';
+      const payload = isSignUp 
+        ? { name, email, password }
+        : { email, password };
+
+      console.log(`Sending ${isSignUp ? 'signup' : 'login'} request to:`, endpoint);
+      console.log('Payload:', payload);
+
+      const response = await fetch(`http://localhost:8000${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      console.log('Response:', data);
+
+      if (response.ok) {
+        toast({
+          title: "Success!",
+          description: data.message || `${isSignUp ? 'Account created' : 'Login'} successful!`,
+        });
+        
+        // Store user info if login was successful
+        if (!isSignUp && data.user_id) {
+          localStorage.setItem('user_id', data.user_id.toString());
+        }
+        
+        onComplete();
+      } else {
+        toast({
+          title: "Error",
+          description: data.detail || `${isSignUp ? 'Signup' : 'Login'} failed. Please try again.`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
+      toast({
+        title: "Network Error",
+        description: "Unable to connect to the server. Please check your connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleLogin = () => {
     // In a real app, this would handle Google OAuth
-    onComplete();
+    toast({
+      title: "Google Login",
+      description: "Google authentication is not yet implemented.",
+    });
   };
 
   return (
@@ -70,6 +125,7 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
               onClick={handleGoogleLogin}
               variant="outline"
               className="w-full py-3 text-gray-700 border-gray-200 hover:border-purple-200 hover:bg-purple-50/50 transition-all duration-300"
+              disabled={isLoading}
             >
               <span className="mr-2">🌟</span>
               Continue with Google
@@ -95,6 +151,7 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
                     onChange={(e) => setName(e.target.value)}
                     className="w-full py-3 border-gray-200 rounded-xl focus:border-purple-300 focus:ring-purple-200"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               )}
@@ -107,6 +164,7 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full py-3 border-gray-200 rounded-xl focus:border-purple-300 focus:ring-purple-200"
                   required
+                  disabled={isLoading}
                 />
               </div>
               
@@ -118,14 +176,25 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full py-3 border-gray-200 rounded-xl focus:border-purple-300 focus:ring-purple-200"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
               <Button
                 type="submit"
                 className="w-full py-3 bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                disabled={isLoading}
               >
-                {isSignUp ? "Create my safe space ✨" : "Welcome back 💜"}
+                {isLoading ? (
+                  <span className="flex items-center">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    {isSignUp ? "Creating account..." : "Signing in..."}
+                  </span>
+                ) : (
+                  <>
+                    {isSignUp ? "Create my safe space ✨" : "Welcome back 💜"}
+                  </>
+                )}
               </Button>
             </form>
 
@@ -133,6 +202,7 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
               <button
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="text-purple-500 hover:text-purple-600 text-sm transition-colors duration-200"
+                disabled={isLoading}
               >
                 {isSignUp 
                   ? "Already have an account? Sign in" 
