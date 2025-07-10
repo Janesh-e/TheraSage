@@ -4,7 +4,7 @@
 This diagram illustrates the internal workings of the TheraSage emotional support platform, a deeply integrated system that handles both **text and voice inputs**, applies **intelligent flow logic with LangGraph**, and offers **emotionally aware, CBT-guided responses** powered by LLMs.
 
 
-![[System Architecture.png]]
+![System Architecture Diagram](./system_architecture.png)
 
 ### Input Flow
 
