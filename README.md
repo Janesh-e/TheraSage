@@ -58,7 +58,7 @@ project-root/
 * **Depth-Aware Interaction**
   Analyzes the entire conversation to determine when the user has reached a point of emotional openness, then gently guides toward helpful solutions.
 
-* **🛠Implicit CBT Tool Suggestions**
+* **Implicit CBT Tool Suggestions**
   CBT (Cognitive Behavioral Therapy) techniques are introduced **indirectly**, without overwhelming or explicitly labeling them—ensuring a more human and natural experience.
 
 * **Smart Journaling System**
