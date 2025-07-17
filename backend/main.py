@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from models import User, JournalEntry
 from schemas import UserCreate, UserLogin
 from db import SessionLocal, engine, get_db
+from dotenv import load_dotenv
+load_dotenv()
 
 
 app = FastAPI()
