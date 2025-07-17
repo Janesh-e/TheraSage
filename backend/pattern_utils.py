@@ -241,7 +241,7 @@ class PatternRecognizer:
         }
         
         # Detect emotional cycles with relaxed criteria
-        cycles = self._detect_emotional_cycles_relaxed(emotion_dates, days_back)
+        cycles = self._detect_emotional_cycles(emotion_dates, days_back)
         
         # Correlate triggers with emotions
         correlations = self._correlate_triggers_emotions(emotions, triggers)
