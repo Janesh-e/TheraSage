@@ -239,7 +239,7 @@ def should_check_patterns(state: ChatState) -> str:
     conversation_phase = state.get("conversation_phase", "exploring")
     
     # Check patterns when we have enough context or periodically
-    if context_depth >= 2 or conversation_phase in ["building_context", "ready_for_cbt"]:
+    if context_depth >= 1 or conversation_phase in ["exploring","building_context", "ready_for_cbt"]:
         return "check_patterns"
     return "skip_patterns"
 

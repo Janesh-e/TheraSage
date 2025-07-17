@@ -159,8 +159,27 @@ class PatternRecognizer:
         
         return triggers
 
+    def _normalize_emotion(self, emotion: str) -> str:
+        """Normalize emotion to its base form"""
+        emotion = emotion.lower().strip()
+        
+        # Map variations to base emotions
+        emotion_mapping = {
+            'anxious': 'anxiety', 'worried': 'anxiety', 'nervous': 'anxiety', 
+            'stressed': 'anxiety', 'overwhelmed': 'anxiety', 'panicked': 'anxiety',
+            'sad': 'sadness', 'depressed': 'sadness', 'down': 'sadness', 
+            'low': 'sadness', 'upset': 'sadness', 'disappointed': 'sadness',
+            'angry': 'anger', 'frustrated': 'anger', 'irritated': 'anger',
+            'mad': 'anger', 'annoyed': 'anger', 'furious': 'anger',
+            'lonely': 'loneliness', 'isolated': 'loneliness', 'alone': 'loneliness',
+            'confused': 'confusion', 'lost': 'confusion', 'uncertain': 'confusion',
+            'hopeless': 'despair', 'defeated': 'despair', 'discouraged': 'despair'
+        }
+        
+        return emotion_mapping.get(emotion, emotion)
+
     def _detect_patterns(self, emotions: List[Dict], triggers: List[Dict], days_back: int) -> Dict:
-        """Detect recurring patterns in emotions and triggers"""
+        """Detect recurring patterns in emotions and triggers with improved sensitivity"""
         patterns = {
             'recurring_emotions': {},
             'recurring_triggers': {},
@@ -171,52 +190,46 @@ class PatternRecognizer:
             'recommendations': []
         }
         
-        # Group emotions by type and count occurrences
+        # Group emotions by normalized type
         emotion_counts = Counter()
         emotion_dates = defaultdict(list)
         confidence_by_emotion = defaultdict(list)
         cbt_distortions = Counter()
         
         for emotion_data in emotions:
-            emotion = emotion_data['emotion']
+            raw_emotion = emotion_data['emotion']
+            normalized_emotion = self._normalize_emotion(raw_emotion)
             timestamp = emotion_data['timestamp']
             confidence = emotion_data['confidence']
             
-            # Count main emotion and synonyms
-            emotion_counts[emotion] += 1
-            emotion_dates[emotion].append(timestamp)
-            confidence_by_emotion[emotion].append(confidence)
+            # Count normalized emotions
+            emotion_counts[normalized_emotion] += 1
+            emotion_dates[normalized_emotion].append(timestamp)
+            confidence_by_emotion[normalized_emotion].append(confidence)
             
             # Track CBT distortions if present
             if emotion_data.get('distortion') and emotion_data['distortion'] != 'None identified':
                 cbt_distortions[emotion_data['distortion']] += 1
-            
-            # Check for synonym patterns
-            for main_emotion, synonyms in self.emotion_synonyms.items():
-                if emotion in synonyms:
-                    emotion_counts[main_emotion] += 1
-                    emotion_dates[main_emotion].append(timestamp)
-                    confidence_by_emotion[main_emotion].append(confidence)
         
-        # Identify recurring emotions (appeared 3+ times)
+        # LOWERED THRESHOLD: Identify recurring emotions (appeared 2+ times instead of 3+)
         recurring_emotions = {
             emotion: count for emotion, count in emotion_counts.items() 
-            if count >= 3
+            if count >= 2
         }
         
-        # Analyze confidence trends
+        # Analyze confidence trends for emotions that appeared at least once
         confidence_trends = {}
         for emotion, confidences in confidence_by_emotion.items():
-            if len(confidences) >= 2:
+            if len(confidences) >= 1:
                 avg_confidence = sum(confidences) / len(confidences)
                 confidence_trends[emotion] = {
                     'average_confidence': round(avg_confidence, 2),
                     'highest_confidence': max(confidences),
                     'lowest_confidence': min(confidences),
-                    'trend': 'increasing' if confidences[-1] > confidences[0] else 'decreasing'
+                    'trend': 'stable' if len(confidences) == 1 else ('increasing' if confidences[-1] > confidences[0] else 'decreasing')
                 }
         
-        # Analyze trigger patterns
+        # Analyze trigger patterns with lower threshold
         trigger_counts = Counter()
         for trigger_data in triggers:
             for trigger in trigger_data['triggers']:
@@ -224,11 +237,11 @@ class PatternRecognizer:
         
         recurring_triggers = {
             trigger: count for trigger, count in trigger_counts.items() 
-            if count >= 2
+            if count >= 1
         }
         
-        # Detect emotional cycles (same emotion recurring within short periods)
-        cycles = self._detect_emotional_cycles(emotion_dates, days_back)
+        # Detect emotional cycles with relaxed criteria
+        cycles = self._detect_emotional_cycles_relaxed(emotion_dates, days_back)
         
         # Correlate triggers with emotions
         correlations = self._correlate_triggers_emotions(emotions, triggers)
@@ -245,7 +258,7 @@ class PatternRecognizer:
         })
         
         # Generate recommendations
-        patterns['recommendations'] = self._generate_recommendations(patterns)
+        patterns['recommendations'] = self._generate_recommendations_relaxed(patterns)
         
         return patterns
 
@@ -254,30 +267,42 @@ class PatternRecognizer:
         cycles = []
         
         for emotion, dates in emotion_dates.items():
-            if len(dates) < 3:
+            if len(dates) < 2:
                 continue
                 
             # Sort dates
             dates.sort()
             
-            # Check for patterns (e.g., every few days)
-            intervals = []
-            for i in range(1, len(dates)):
-                interval = (dates[i] - dates[i-1]).days
-                intervals.append(interval)
-            
-            if intervals:
-                avg_interval = sum(intervals) / len(intervals)
-                
-                # If emotion occurs regularly (every 3-7 days), flag as cycle
-                if 2 <= avg_interval <= 7 and len(dates) >= 3:
+            # For just 2 occurrences, note the pattern
+            if len(dates) == 2:
+                interval = (dates[1] - dates[0]).days
+                if interval <= 7:  # Within a week
                     cycles.append({
                         'emotion': emotion,
-                        'frequency': f"Every ~{avg_interval:.1f} days",
+                        'frequency': f"Recurring pattern (2 times in {interval} days)",
                         'occurrences': len(dates),
                         'last_occurrence': dates[-1],
-                        'pattern_strength': 'high' if len(dates) >= 4 else 'moderate'
+                        'pattern_strength': 'emerging'
                     })
+            else:
+                # For 3+ occurrences, calculate intervals
+                intervals = []
+                for i in range(1, len(dates)):
+                    interval = (dates[i] - dates[i-1]).days
+                    intervals.append(interval)
+                
+                if intervals:
+                    avg_interval = sum(intervals) / len(intervals)
+                    
+                    # More relaxed criteria: 1-14 days instead of 2-7
+                    if 1 <= avg_interval <= 14 and len(dates) >= 2:
+                        cycles.append({
+                            'emotion': emotion,
+                            'frequency': f"Every ~{avg_interval:.1f} days",
+                            'occurrences': len(dates),
+                            'last_occurrence': dates[-1],
+                            'pattern_strength': 'established' if len(dates) >= 3 else 'emerging'
+                        })
         
         return cycles
 
@@ -310,8 +335,8 @@ class PatternRecognizer:
         
         return significant_correlations
 
-    def _generate_recommendations(self, patterns: Dict) -> List[str]:
-        """Generate personalized recommendations based on patterns"""
+    def _generate_recommendations_relaxed(self, patterns: Dict) -> List[str]:
+        """Generate personalized recommendations with lower thresholds"""
         recommendations = []
         
         recurring_emotions = patterns['recurring_emotions']
@@ -319,27 +344,36 @@ class PatternRecognizer:
         correlations = patterns['trigger_emotion_correlations']
         cbt_patterns = patterns['cbt_patterns']
         confidence_trends = patterns['confidence_trends']
+        total_events = patterns.get('total_emotional_events', 0)
         
-        # Recommendations for recurring emotions
+        # Recommendations for recurring emotions (lowered threshold)
         for emotion, count in recurring_emotions.items():
-            if count >= 3:
+            if count >= 2:  # Changed from 3 to 2
                 recommendations.append(
                     f"I've noticed you've felt {emotion} {count} times recently. "
                     f"Would you like to explore what might be behind this pattern?"
                 )
         
-        # Recommendations for emotional cycles
+        # Recommendations for emotional cycles (including emerging patterns)
         for cycle in cycles:
             emotion = cycle['emotion']
             frequency = cycle['frequency']
-            recommendations.append(
-                f"You seem to experience {emotion} feelings {frequency}. "
-                f"Recognizing this pattern might help us work on prevention strategies."
-            )
+            strength = cycle['pattern_strength']
+            
+            if strength == 'emerging':
+                recommendations.append(
+                    f"I'm starting to notice a pattern with {emotion} feelings. "
+                    f"Let's keep an eye on this to see if it develops further."
+                )
+            else:
+                recommendations.append(
+                    f"You seem to experience {emotion} feelings {frequency}. "
+                    f"Recognizing this pattern might help us work on prevention strategies."
+                )
         
-        # Recommendations for trigger-emotion correlations
+        # Recommendations for trigger-emotion correlations (lowered threshold)
         for pattern, occurrences in correlations.items():
-            if len(occurrences) >= 3:
+            if len(occurrences) >= 2:  # Changed from 3 to 2
                 recommendations.append(
                     f"I notice a pattern: {pattern.replace('→', 'often leads to')} feelings. "
                     f"This has happened {len(occurrences)} times. Want to explore coping strategies?"
@@ -353,16 +387,23 @@ class PatternRecognizer:
                 f"({most_common_distortion[1]} times). Let's work on recognizing and challenging this pattern."
             )
         
-        # Recommendations for confidence trends
+        # Recommendations for confidence trends (more inclusive)
         for emotion, trend_data in confidence_trends.items():
-            if trend_data['average_confidence'] >= 0.8:
+            if trend_data['average_confidence'] >= 0.7:  # Lowered from 0.8
                 recommendations.append(
                     f"You're becoming very aware of your {emotion} feelings "
                     f"(avg confidence: {trend_data['average_confidence']}). This self-awareness is a great strength."
                 )
         
+        # Early pattern detection for minimal data
+        if total_events >= 2 and not recommendations:
+            recommendations.append(
+                "I'm beginning to see some patterns in your emotional experiences. "
+                "As we continue talking, I'll be able to provide more specific insights."
+            )
+        
         # General recommendations
-        if not recommendations:
+        if not recommendations and total_events >= 1:
             recommendations.append(
                 "I'm learning about your emotional patterns. Keep sharing with me to help identify useful insights."
             )
@@ -370,18 +411,20 @@ class PatternRecognizer:
         return recommendations
 
     def should_surface_pattern(self, patterns: Dict) -> bool:
-        """Determine if patterns are significant enough to surface to user"""
+        """Determine if patterns are significant enough to surface to user - more sensitive"""
         recurring_emotions = patterns['recurring_emotions']
         cycles = patterns['emotional_cycles']
         correlations = patterns['trigger_emotion_correlations']
         cbt_patterns = patterns['cbt_patterns']
+        total_events = patterns.get('total_emotional_events', 0)
         
-        # Surface if we have significant patterns
+        # Surface if we have ANY significant patterns OR sufficient data
         return (
             len(recurring_emotions) > 0 or
             len(cycles) > 0 or
             len(correlations) > 0 or
-            len(cbt_patterns) > 0
+            len(cbt_patterns) > 0 or
+            total_events >= 3  # Surface if we have at least 3 emotional events
         )
 
     def get_pattern_summary(self, patterns: Dict) -> str:
