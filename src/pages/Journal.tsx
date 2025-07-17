@@ -27,36 +27,21 @@ const Journal = () => {
   const fetchJournalEntries = async () => {
     try {
       setLoading(true);
-      // This will be the API call when the backend route is ready
-      // const response = await fetch('/journals/');
-      // const data = await response.json();
-      // setEntries(data);
+      // Get user_id from localStorage (assuming it's stored there after login)
+      const userId = localStorage.getItem('user_id');
       
-      // Mock data for now - remove this when backend is ready
-      const mockData: JournalEntry[] = [
-        {
-          id: 1,
-          user_id: "user_123",
-          entry_type: "emotional_checkin",
-          content: "💭 Emotional Check-in - 2025-07-10 21:03\n\nEmotion: sadness (confidence: 0.97)\nPhase: exploring\n\nUser shared: hey there. im feeling a bit tired and exhausted today...",
-          timestamp: "2025-07-10T21:03:00Z"
-        },
-        {
-          id: 2,
-          user_id: "user_123",
-          entry_type: "cbt_summary",
-          content: "💭 CBT Session Summary - 2025-07-09 14:30\n\nThought Pattern: Catastrophizing\nEmotion: anxiety (confidence: 0.89)\n\nUser shared: I keep thinking about worst case scenarios at work...",
-          timestamp: "2025-07-09T14:30:00Z"
-        },
-        {
-          id: 3,
-          user_id: "user_123",
-          entry_type: "positive_reflection",
-          content: "🌟 Positive Reflection - 2025-07-08 16:45\n\nGratitude: Family support\nMood: hopeful\n\nUser shared: Today I realized how much my family means to me...",
-          timestamp: "2025-07-08T16:45:00Z"
-        }
-      ];
-      setEntries(mockData);
+      if (!userId) {
+        setError('User not authenticated');
+        return;
+      }
+      
+      const response = await fetch(`http://localhost:8000/journals/${userId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch journal entries');
+      }
+      
+      const data = await response.json();
+      setEntries(data.journals || []);
     } catch (err) {
       setError("Failed to load journal entries");
       console.error("Error fetching journal entries:", err);

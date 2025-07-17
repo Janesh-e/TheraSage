@@ -12,7 +12,7 @@ from typing import Optional
 from pydub import AudioSegment
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from models import User
+from models import User, JournalEntry
 from schemas import UserCreate, UserLogin
 from db import SessionLocal, engine, get_db
 
@@ -106,6 +106,28 @@ async def process_chat(user_id: str = Body(...), text: str = Body(..., embed=Tru
     result = flow.invoke({"user_id": user_id, "text": text})
     return result
 
+@app.get("/journals/{user_id}")
+def get_user_journals(user_id: str, db: Session = Depends(get_db)):
+    """Fetch journal entries for a specific user"""
+    try:
+        journals = db.query(JournalEntry).filter(
+            JournalEntry.user_id == user_id
+        ).order_by(JournalEntry.timestamp.desc()).all()
+        
+        formatted_journals = []
+        for journal in journals:
+            formatted_journals.append({
+                "id": journal.id,
+                "user_id": journal.user_id,
+                "entry_type": journal.entry_type,
+                "content": journal.content,
+                "timestamp": journal.timestamp.isoformat()
+            })
+        
+        return {"journals": formatted_journals}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch journals: {str(e)}")
+
 @app.post("/process/")
 async def unified_input_handler(
     user_id: str = Form(...),
@@ -148,10 +170,7 @@ async def unified_input_handler(
             }, status_code=400)
 
         # --- Run through LangGraph Flow ---
-        result, events = flow.invoke({"user_id": user_id, "text": text}, return_events=True)
-
-        for event in events:
-            print(f"[{event.node}] Output: {event.output}")
+        result = flow.invoke({"user_id": user_id, "text": text})
         
         return result
 
