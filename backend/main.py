@@ -148,7 +148,11 @@ async def unified_input_handler(
             }, status_code=400)
 
         # --- Run through LangGraph Flow ---
-        result = flow.invoke({"user_id": user_id, "text": text})
+        result, events = flow.invoke({"user_id": user_id, "text": text}, return_events=True)
+
+        for event in events:
+            print(f"[{event.node}] Output: {event.output}")
+        
         return result
 
     except Exception as e:
