@@ -4,6 +4,7 @@ from stt_utils import transcribe_audio
 from vad_utils import is_speech
 from emotion_utils import detect_emotion
 from langgraph_chain import flow
+from langgraph_chain_v2 import flow_v2
 from pydub import AudioSegment
 import shutil
 from uuid import uuid4
@@ -18,6 +19,8 @@ from db import SessionLocal, engine, get_db
 from dotenv import load_dotenv
 load_dotenv()
 
+import logging
+logger = logging.getLogger("uvicorn")
 
 app = FastAPI()
 
@@ -172,7 +175,7 @@ async def unified_input_handler(
             }, status_code=400)
 
         # --- Run through LangGraph Flow ---
-        result = flow.invoke({"user_id": user_id, "text": text})
+        result = flow_v2.invoke({"user_id": user_id, "text": text})
         
         return result
 
