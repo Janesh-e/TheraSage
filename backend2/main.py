@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, status, APIRouter
+from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, status, APIRouter, WebSocket, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -15,6 +15,9 @@ import json
 import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 from pydub import AudioSegment
+
+from fastapi import WebSocket
+from ai_agent import process_ai_conversation
 
 from schemas import UserCreate, UserResponse
 
@@ -206,7 +209,35 @@ async def speech_to_text(file: UploadFile = File(...)):
             if os.path.exists(path):
                 os.remove(path)
 
+# ========== CHAT ===========
+
+@app.post("/chat/{user_id}/{session_id}")
+async def chat_api(
+    user_id: str,
+    session_id: str,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Simple REST endpoint for user–AI chat.
+    Expects JSON: {"message": "<user message>"}
+    """
+    message = payload.get("message", "")
+    if not message:
+        raise HTTPException(400, "Missing 'message' field")
+
+    result = await process_ai_conversation(db, user_id, session_id, message)
+
+    return {
+        "response": result["response"],
+        "intervention": result["intervention_type"],
+        "analysis": result["analysis"],
+        "crisis_detected": result["crisis_detected"]
+    }
+
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# to run "uvicorn main:app --reload --host 0.0.0.0 --port 8000"

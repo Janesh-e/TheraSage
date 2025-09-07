@@ -358,7 +358,7 @@ class Comment(Base):
     # Relationships
     post = relationship("CommunityPost", back_populates="comments")
     author = relationship("User", back_populates="comments")
-    replies = relationship("Comment", remote_side=[id], cascade="all, delete-orphan")
+    replies = relationship("Comment", remote_side=[id], cascade="all, delete-orphan", single_parent=True)
     
     __table_args__ = (
         Index('idx_comment_post_created', 'post_id', 'created_at'),
