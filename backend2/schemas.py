@@ -22,6 +22,7 @@ class UserResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 class ChatSessionCreate(BaseModel):
     title: Optional[str] = None
@@ -38,6 +39,7 @@ class ChatSessionResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 class ChatMessageCreate(BaseModel):
     content: str
@@ -54,6 +56,17 @@ class ChatMessageResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
+
+class SessionRenameRequest(BaseModel):
+    new_title: str
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "new_title": "My Updated Session Title"
+            }
+        }
 
 class CommunityPostCreate(BaseModel):
     title: str
@@ -74,6 +87,7 @@ class CommunityPostResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 class CommentCreate(BaseModel):
     content: str
@@ -88,3 +102,4 @@ class CommentResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
