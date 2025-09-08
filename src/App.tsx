@@ -9,6 +9,8 @@ import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import ChatPage from "./pages/ChatPage";
 import Journal from "./pages/Journal";
+import Messages from "./pages/Messages";
+import Community from "./pages/Community";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,8 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/journal" element={<Journal />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/community" element={<Community />} />
           <Route path="/dashboard" element={<Dashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
