@@ -127,7 +127,8 @@ const Messages = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Messages</h1>
         <p className="text-muted-foreground">
@@ -302,6 +303,7 @@ const Messages = () => {
           )}
         </Card>
       </div>
+    </div>
     </div>
   );
 };

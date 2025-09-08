@@ -4,8 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Calendar, Download, Heart, Activity, BookOpen, Brain, Target, Shield, MessageSquare } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import AppSidebar from "@/components/AppSidebar";
-import { SidebarProvider } from "@/components/ui/sidebar";
 
 // Mock data for demonstration
 const moodData = [
@@ -56,12 +54,8 @@ const Dashboard = () => {
   const [selectedTimeframe, setSelectedTimeframe] = useState('week');
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-to-br from-purple-50/30 via-pink-50/30 to-blue-50/30">
-        <AppSidebar />
-        
-        <main className="flex-1 overflow-auto">
-          <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50/30 via-pink-50/30 to-blue-50/30">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -307,10 +301,8 @@ const Dashboard = () => {
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </main>
+        </div>
       </div>
-    </SidebarProvider>
   );
 };
 
