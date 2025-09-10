@@ -283,7 +283,7 @@ const Dashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 py-8">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 gap-3 py-6">
                 {emotionWords.map((word, index) => (
                   <div
                     key={index}
@@ -362,8 +362,13 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                  Everything here is completely private and belongs to you. Your
-                  thoughts, emotions, and reflections are secure.
+                  Your thoughts, emotions, and reflections are fully private and
+                  secure. Only you have access to your personal data, ensuring
+                  complete confidentiality.
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                  We never share your information with anyone, not even your
+                  therapist.
                 </p>
                 <div className="flex items-center text-xs text-green-400">
                   <Shield className="w-3 h-3 mr-1" />

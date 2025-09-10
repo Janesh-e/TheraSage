@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -30,6 +30,14 @@ interface Message {
 const Messages = () => {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [newMessage]);
 
   // Mock data
   const chatSessions: ChatSession[] = [
@@ -147,7 +155,7 @@ const Messages = () => {
           <div className="px-6 py-4 border-b border-border">
             <h2 className="text-heading-md font-semibold text-card-foreground flex items-center gap-3">
               <Users className="h-5 w-5 text-primary" />
-              Conversations
+              Peer & Therapist Chats
             </h2>
           </div>
 
@@ -327,30 +335,29 @@ const Messages = () => {
               {/* Message Input */}
               <div className="border-t border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60 px-8 py-6 shadow-lg">
                 <div className="max-w-4xl mx-auto">
-                  <div className="flex gap-4">
-                    <Input
+                  <div className="flex items-start gap-4">
+                    <Textarea
+                      ref={textareaRef}
                       placeholder="Type your message..."
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={(e) =>
-                        e.key === "Enter" && handleSendMessage()
-                      }
-                      className="flex-1 h-12 px-4 bg-background border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl shadow-sm"
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      className="flex-1 px-4 py-3 bg-background border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl shadow-sm resize-none overflow-y-hidden"
+                      rows={1}
                     />
                     <Button
                       onClick={handleSendMessage}
-                      className="h-12 px-6 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
+                      className="h-12 px-6 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md hover:shadow-lg transition-all duration-200 self-end"
                     >
                       <Send className="h-5 w-5" />
                     </Button>
                   </div>
-                  {chatSessions.find((s) => s.id === activeChat)?.type ===
-                    "therapist" && (
-                    <p className="text-body-sm text-muted-foreground mt-4 flex items-center gap-2">
-                      🔒 This is a secure, confidential conversation with a
-                      licensed mental health professional.
-                    </p>
-                  )}
+                  {/* You can add therapist-specific UI here if needed */}
                 </div>
               </div>
             </>
