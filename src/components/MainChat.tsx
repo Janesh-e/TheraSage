@@ -1,370 +1,314 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Paperclip } from "lucide-react";
+import { Send, ArrowDown } from "lucide-react";
 import ChatBubble from "@/components/ChatBubble";
 import TypingIndicator from "@/components/TypingIndicator";
 import AppSidebar from "@/components/AppSidebar";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import ReadAloudToggle from "@/components/ReadAloudToggle";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import LLMToggle from "@/components/LLMToggle";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { cleanTextForSpeech } from "@/utils/textUtils";
+import Textarea from "react-textarea-autosize";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface Message {
+  type: "user" | "bot";
+  content: string;
+  timestamp: Date;
+}
 
 interface MainChatProps {
   userResponses: Record<number, string>;
 }
 
 const MainChat = ({ userResponses }: MainChatProps) => {
-  const [messages, setMessages] = useState<Array<{ type: 'user' | 'bot', content: string, timestamp: Date }>>([]);
-  const [inputValue, setInputValue] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [readAloudEnabled, setReadAloudEnabled] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [readAloud, setReadAloud] = useState(true);
+  const [llmMode, setLlmMode] = useState<"online" | "offline">("online");
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const userName = userResponses[1] || 'friend';
-  const botName = userResponses[2] || 'TheraSage';
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Speech synthesis function with emoji cleaning
+  const userName = userResponses[1] || "friend";
+  const botName = userResponses[2] || "TheraSage";
+
   const speakText = (text: string) => {
-    if (!readAloudEnabled || !('speechSynthesis' in window)) return;
-    
-    // Cancel any ongoing speech
+    if (!readAloud || !("speechSynthesis" in window)) return;
     speechSynthesis.cancel();
-    
-    // Clean the text to remove emojis and special characters
     const cleanedText = cleanTextForSpeech(text);
-    
-    if (!cleanedText.trim()) return; // Don't speak if no text remains after cleaning
-    
+    if (!cleanedText.trim()) return;
     const utterance = new SpeechSynthesisUtterance(cleanedText);
     utterance.rate = 0.9;
     utterance.pitch = 1;
     utterance.volume = 0.8;
-    
-    // Try to use a pleasant voice if available
     const voices = speechSynthesis.getVoices();
-    const preferredVoice = voices.find(voice => 
-      voice.name.includes('Female') || 
-      voice.name.includes('Samantha') ||
-      voice.name.includes('Karen') ||
-      voice.lang.startsWith('en')
+    const preferredVoice = voices.find(
+      (voice) =>
+        voice.name.includes("Female") ||
+        voice.name.includes("Samantha") ||
+        voice.lang.startsWith("en")
     );
-    
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-    }
-    
+    if (preferredVoice) utterance.voice = preferredVoice;
     speechSynthesis.speak(utterance);
   };
 
   useEffect(() => {
-    // Welcome message from the bot
     const welcomeMessage = {
-      type: 'bot' as const,
-      content: `Hi ${userName}! I'm ${botName}, and I'm so glad we've connected. How are you feeling today? 💜`,
-      timestamp: new Date()
+      type: "bot" as const,
+      content: `Hi ${userName}! I'm ${botName}, your personal guide to emotional well-being. How are you feeling today? 💜`,
+      timestamp: new Date(),
     };
-    
-    setTimeout(() => {
-      setMessages([welcomeMessage]);
-    }, 1000);
+    setTimeout(() => setMessages([welcomeMessage]), 500);
   }, [userName, botName]);
 
+  const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+    scrollToBottom("auto");
+  }, [messages.length]);
+
+  const handleScroll = () => {
+    if (chatContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } =
+        chatContainerRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollToBottom(!isAtBottom);
+    }
+  };
 
   const sendToBackend = async (text?: string, audioFile?: Blob) => {
-    console.log('Sending to backend:', { hasText: !!text, hasAudio: !!audioFile });
-    
+    setIsTyping(true);
     const formData = new FormData();
-    formData.append('user_id', 'user_123'); // You can make this dynamic
-    
-    if (text) {
-      formData.append('text', text);
-      console.log('Added text to form:', text);
-    }
-    
-    if (audioFile) {
-      console.log('Adding audio file:', {
-        size: audioFile.size,
-        type: audioFile.type,
-        name: 'recording.wav'
-      });
-      formData.append('file', audioFile, 'recording.wav');
-    }
-
-    // Debug FormData contents
-    console.log('FormData contents:');
-    for (const [key, value] of formData.entries()) {
-      const formValue = value as FormDataEntryValue;
-      if (formValue instanceof File) {
-        console.log(`${key}:`, {
-          size: formValue.size,
-          type: formValue.type,
-          name: formValue.name
-        });
-      } else if (typeof formValue === 'object' && formValue && 'size' in formValue && 'type' in formValue) {
-        console.log(`${key}:`, {
-          size: (formValue as Blob).size,
-          type: (formValue as Blob).type,
-          name: 'blob'
-        });
-      } else {
-        console.log(`${key}:`, formValue);
-      }
-    }
+    formData.append("user_id", "user123");
+    formData.append("mode", llmMode);
+    if (text) formData.append("text", text);
+    if (audioFile) formData.append("file", audioFile, "recording.wav");
 
     try {
-      const response = await fetch('http://localhost:8000/process/', {
-        method: 'POST',
+      const response = await fetch("http://localhost:8000/process/", {
+        method: "POST",
         body: formData,
       });
-
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response error:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('Backend response:', result);
-      return result;
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json();
     } catch (error) {
-      console.error('Error sending to backend:', error);
+      console.error("Error sending to backend:", error);
       throw error;
     }
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isProcessing) return;
+    if (!input.trim() || isRecording) return;
 
     const userMessage = {
-      type: 'user' as const,
-      content: inputValue,
-      timestamp: new Date()
+      type: "user" as const,
+      content: input,
+      timestamp: new Date(),
     };
-
-    setMessages(prev => [...prev, userMessage]);
-    const currentInput = inputValue;
-    setInputValue("");
-    setIsProcessing(true);
-    setIsTyping(true);
+    setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
+    setInput("");
 
     try {
       const response = await sendToBackend(currentInput);
-      
-      setIsTyping(false);
       const botResponse = {
-        type: 'bot' as const,
-        content: response.response || response.message || "I'm here to listen and support you. 🌸",
-        timestamp: new Date()
+        type: "bot" as const,
+        content:
+          response.response || response.message || "I'm here to listen. 🌸",
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, botResponse]);
-      
-      // Read aloud the bot's response with cleaned text
+      setMessages((prev) => [...prev, botResponse]);
       speakText(botResponse.content);
     } catch (error) {
-      setIsTyping(false);
       const errorResponse = {
-        type: 'bot' as const,
-        content: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment. 💜",
-        timestamp: new Date()
+        type: "bot" as const,
+        content: "I'm sorry, something went wrong. Please try again. 💜",
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorResponse]);
-      
-      // Read aloud the error response too
+      setMessages((prev) => [...prev, errorResponse]);
       speakText(errorResponse.content);
     } finally {
-      setIsProcessing(false);
+      setIsTyping(false);
     }
   };
 
-  const handleVoiceRecording = async (audioBlob: Blob) => {
-    console.log('Voice recording received:', {
-      size: audioBlob.size,
-      type: audioBlob.type
-    });
-    
-    if (isProcessing) {
-      console.log('Already processing, ignoring voice input');
-      return;
-    }
+  const handleVoiceSend = async (audioBlob: Blob) => {
+    if (audioBlob.size === 0) return;
 
-    if (audioBlob.size === 0) {
-      console.error('Received empty audio blob');
-      alert('Recording failed - no audio data. Please try again.');
-      return;
-    }
-
-    // Add a placeholder message for the voice input
     const userMessage = {
-      type: 'user' as const,
-      content: "🎤 Processing voice message...",
-      timestamp: new Date()
+      type: "user" as const,
+      content: "🎤 Voice message...",
+      timestamp: new Date(),
     };
-
-    setMessages(prev => [...prev, userMessage]);
-    setIsProcessing(true);
+    setMessages((prev) => [...prev, userMessage]);
+    setIsRecording(true);
     setIsTyping(true);
 
     try {
-      console.log('Sending voice recording to backend...');
       const response = await sendToBackend(undefined, audioBlob);
-      
-      setIsTyping(false);
-      
-      // If there's transcribed text, update the user message
       if (response.text && response.text.trim()) {
-        console.log('Received transcription:', response.text);
-        setMessages(prev => prev.map((msg, index) => 
-          index === prev.length - 1 && msg.type === 'user' 
-            ? { ...msg, content: response.text }
-            : msg
-        ));
-      } else {
-        console.log('No transcription received or empty text');
-        setMessages(prev => prev.map((msg, index) => 
-          index === prev.length - 1 && msg.type === 'user' 
-            ? { ...msg, content: "🎤 Voice message (no transcription)" }
-            : msg
-        ));
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg === userMessage ? { ...msg, content: response.text } : msg
+          )
+        );
       }
-      
       const botResponse = {
-        type: 'bot' as const,
-        content: response.response || response.message || "I heard you. Let me think about that. 🌸",
-        timestamp: new Date()
+        type: "bot" as const,
+        content:
+          response.response ||
+          response.message ||
+          "I heard you. Let me think. 🌸",
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, botResponse]);
-      
-      // Read aloud the bot's response to voice input
+      setMessages((prev) => [...prev, botResponse]);
       speakText(botResponse.content);
     } catch (error) {
-      console.error('Voice processing error:', error);
-      setIsTyping(false);
-      
-      // Update the placeholder message to show error
-      setMessages(prev => prev.map((msg, index) => 
-        index === prev.length - 1 && msg.type === 'user' 
-          ? { ...msg, content: "🎤 Voice message (processing failed)" }
-          : msg
-      ));
-      
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg === userMessage
+            ? { ...msg, content: "🎤 Voice message (failed)" }
+            : msg
+        )
+      );
       const errorResponse = {
-        type: 'bot' as const,
-        content: "I'm sorry, I couldn't process your voice message. Please try again or type your message instead. 💜",
-        timestamp: new Date()
+        type: "bot" as const,
+        content: "I couldn't process your voice message. Please try again. 💜",
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorResponse]);
-      
-      // Read aloud the error response
+      setMessages((prev) => [...prev, errorResponse]);
       speakText(errorResponse.content);
     } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+      setIsRecording(false);
+      setIsTyping(false);
     }
   };
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-to-br from-purple-50/30 via-pink-50/30 to-blue-50/30">
+      <div className="flex h-screen w-full bg-background overflow-hidden">
         <AppSidebar />
-        
-        <SidebarInset className="flex flex-col">
-          {/* Header */}
-          <div className="bg-white/80 backdrop-blur-sm border-b border-white/50 p-4 sticky top-0 z-10">
-            <div className="max-w-4xl mx-auto flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
-                  <span className="text-white text-lg">💜</span>
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="flex-shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 py-4 shadow-sm">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-4">
+                <SidebarTrigger className="p-2 hover:bg-accent rounded-lg transition-colors" />
+                <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
+                  <span className="text-xl font-bold text-white">T</span>
                 </div>
                 <div>
-                  <h1 className="text-lg font-medium text-gray-800">{botName}</h1>
-                  <p className="text-sm text-gray-500">Always here for you</p>
+                  <h1 className="text-lg font-bold text-foreground">
+                    {botName}
+                  </h1>
+                  <div className="flex items-center space-x-2">
+                    <div
+                      className={`w-2.5 h-2.5 rounded-full shadow-sm ${
+                        llmMode === "online" ? "bg-green-500" : "bg-gradient-to-r from-teal-500 to-orange-500"
+                      }`}
+                    ></div>
+                    <span className="text-sm text-muted-foreground font-medium">
+                      {llmMode === "online" ? "Online" : "Offline"}
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <ReadAloudToggle 
-                  enabled={readAloudEnabled}
-                  onToggle={setReadAloudEnabled}
-                />
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-gray-600">Online</span>
-                </div>
+                <LLMToggle mode={llmMode} onModeChange={setLlmMode} />
+                <ReadAloudToggle enabled={readAloud} onToggle={setReadAloud} />
               </div>
+            </div>
+          </header>
+
+          <div
+            className="flex-1 overflow-y-auto"
+            ref={chatContainerRef}
+            onScroll={handleScroll}
+          >
+            <div className="max-w-4xl mx-auto px-4 py-6">
+              <AnimatePresence initial={false}>
+                <motion.div layout className="space-y-6">
+                  {messages.map((msg, index) => (
+                    <ChatBubble
+                      key={index}
+                      message={msg.content}
+                      isBot={msg.type === "bot"}
+                      timestamp={msg.timestamp}
+                    />
+                  ))}
+                </motion.div>
+              </AnimatePresence>
+              {isTyping && <TypingIndicator />}
+              <div ref={messagesEndRef} />
             </div>
           </div>
 
-          {/* Messages Container */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-4xl mx-auto p-6">
-              <div className="space-y-6">
-                {messages.map((message, index) => (
-                  <ChatBubble
-                    key={index}
-                    message={message.content}
-                    isBot={message.type === 'bot'}
-                    delay={0}
-                  />
-                ))}
-                
-                {isTyping && <TypingIndicator />}
-                <div ref={messagesEndRef} />
-              </div>
-            </div>
-          </div>
-
-          {/* Input Area */}
-          <div className="bg-white/80 backdrop-blur-sm border-t border-white/50 p-4 sticky bottom-0">
+          <footer className="flex-shrink-0 border-t border-border bg-background/80 backdrop-blur-sm px-6 py-4 shadow-lg">
             <div className="max-w-4xl mx-auto">
-              <div className="flex items-end space-x-4">
-                <div className="flex-1 bg-white rounded-2xl border-2 border-gray-200 focus-within:border-purple-300 transition-colors">
-                  <textarea
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder={`Share your thoughts with ${botName}...`}
-                    className="w-full p-4 rounded-2xl resize-none focus:outline-none bg-transparent max-h-32"
-                    rows={1}
-                    disabled={isProcessing}
-                    style={{
-                      minHeight: '60px',
-                      height: 'auto'
+              <div className="flex items-end space-x-3">
+                <div className="flex-1 relative">
+                  <Textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
                     }}
+                    placeholder={
+                      isRecording ? "🎤 Recording..." : "Type your message..."
+                    }
+                    className="w-full p-4 pr-16 border border-border rounded-xl shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200 bg-card text-foreground resize-none"
+                    minRows={1}
+                    maxRows={5}
+                    disabled={isRecording}
                   />
-                  <div className="flex items-center justify-between p-2 px-4">
-                    <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
-                        <Paperclip size={18} />
-                      </Button>
-                      <VoiceRecorder 
-                        onRecordingComplete={handleVoiceRecording}
-                        disabled={isProcessing}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-400">Press Enter to send, Shift+Enter for new line</span>
+                  <div className="absolute right-3 top-3">
+                    <VoiceRecorder
+                      onRecordingChange={setIsRecording}
+                      onTranscriptionBlob={handleVoiceSend}
+                    />
                   </div>
                 </div>
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || isProcessing}
-                  className="bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white rounded-2xl p-4 h-auto disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105"
+                  className="bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white rounded-xl w-12 h-12 flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 flex-shrink-0"
+                  disabled={!input.trim() && !isRecording}
+                  size="icon"
                 >
-                  <Send size={20} />
+                  <Send className="w-5 h-5" />
                 </Button>
               </div>
             </div>
-          </div>
-        </SidebarInset>
+          </footer>
+
+          <AnimatePresence>
+            {showScrollToBottom && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="absolute bottom-24 right-8"
+              >
+                <Button
+                  onClick={() => scrollToBottom()}
+                  className="rounded-full bg-white/70 backdrop-blur-sm text-gray-700 hover:bg-white shadow-lg"
+                  size="icon"
+                  variant="outline"
+                >
+                  <ArrowDown className="w-5 h-5" />
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </SidebarProvider>
   );

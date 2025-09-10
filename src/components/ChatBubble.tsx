@@ -1,52 +1,65 @@
-
-import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { format } from "date-fns";
 
 interface ChatBubbleProps {
   message: string;
   isBot: boolean;
-  delay?: number;
+  timestamp: Date;
 }
 
-const ChatBubble = ({ message, isBot, delay = 0 }: ChatBubbleProps) => {
-  const [isVisible, setIsVisible] = useState(false);
+const ChatBubble = ({ message, isBot, timestamp }: ChatBubbleProps) => {
+  const variants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 },
+  };
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(true);
-    }, delay);
-    return () => clearTimeout(timer);
-  }, [delay]);
+  // Safely handle timestamp - use current date if invalid
+  const getFormattedTime = () => {
+    try {
+      const date = timestamp ? new Date(timestamp) : new Date();
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return format(new Date(), "h:mm a");
+      }
+      return format(date, "h:mm a");
+    } catch (error) {
+      console.warn("Invalid timestamp in ChatBubble:", timestamp, error);
+      return format(new Date(), "h:mm a");
+    }
+  };
 
   return (
-    <div
-      className={`flex ${isBot ? 'justify-start' : 'justify-end'} transition-all duration-500 ${
-        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-      }`}
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={variants}
+      transition={{ duration: 0.3 }}
+      className={`flex items-start gap-3 ${isBot ? "" : "flex-row-reverse"}`}
     >
-      <div className={`flex items-start space-x-3 max-w-lg ${isBot ? '' : 'flex-row-reverse space-x-reverse'}`}>
-        {/* Avatar */}
-        <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-          isBot 
-            ? 'bg-gradient-to-r from-purple-400 to-pink-400' 
-            : 'bg-gradient-to-r from-blue-400 to-cyan-400'
-        }`}>
-          <span className="text-white text-lg">
-            {isBot ? '💜' : '🙂'}
-          </span>
-        </div>
-        
-        {/* Message Bubble */}
-        <div
-          className={`px-6 py-4 rounded-3xl shadow-lg border transition-all duration-200 hover:shadow-xl ${
-            isBot
-              ? 'bg-white/90 text-gray-800 border-gray-100/50 backdrop-blur-sm'
-              : 'bg-gradient-to-r from-purple-400 to-pink-400 text-white border-transparent'
+      <div
+        className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-sm ${
+          isBot ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+        }`}
+      >
+        {isBot ? "🤖" : "👤"}
+      </div>
+      <div
+        className={`relative max-w-md lg:max-w-lg px-4 py-3 rounded-xl shadow-sm ${
+          isBot
+            ? "bg-card text-card-foreground rounded-bl-none border border-border"
+            : "bg-primary text-primary-foreground rounded-br-none"
+        }`}
+      >
+        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message}</p>
+        <time
+          className={`text-xs mt-2 block ${
+            isBot ? "text-muted-foreground" : "text-primary-foreground/70"
           }`}
         >
-          <p className="text-base leading-relaxed">{message}</p>
-        </div>
+          {getFormattedTime()}
+        </time>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

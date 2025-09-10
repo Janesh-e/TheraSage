@@ -141,43 +141,25 @@ const Community = () => {
   ];
 
   const getVoteColor = (isUpvoted: boolean, isDownvoted: boolean, type: 'up' | 'down') => {
-    if (type === 'up' && isUpvoted) return 'text-orange-500';
-    if (type === 'down' && isDownvoted) return 'text-blue-500';
+    if (type === 'up' && isUpvoted) return 'text-primary';
+    if (type === 'down' && isDownvoted) return 'text-secondary';
     return 'text-muted-foreground hover:text-foreground';
   };
 
   const getFlairColor = (flair?: string) => {
     switch (flair) {
-      case 'Success Story': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Discussion': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Guide': return 'bg-purple-100 text-purple-800 border-purple-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'Success Story': return 'bg-accent text-accent-foreground border-border';
+      case 'Discussion': return 'bg-primary/10 text-primary border-primary/20';
+      case 'Guide': return 'bg-secondary/10 text-secondary border-secondary/20';
+      default: return 'bg-muted text-muted-foreground border-border';
     }
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold">Communities</h1>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search communities..." className="pl-10 w-80" />
-              </div>
-            </div>
-            <Button onClick={() => setShowCreatePost(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Post
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="flex-1 px-6 py-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-4">
             {/* Sort Options */}
@@ -325,6 +307,7 @@ const Community = () => {
             ))}
           </div>
         </div>
+      </div>
       </div>
 
       {/* Create Post Modal (placeholder) */}

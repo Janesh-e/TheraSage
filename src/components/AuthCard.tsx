@@ -84,12 +84,12 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/20 to-secondary/15 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Button
           variant="ghost"
           onClick={onBack}
-          className="mb-6 text-gray-600 hover:text-gray-800"
+          className="mb-6 text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
@@ -102,19 +102,19 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
               onClick={onSkipToChat}
               variant="outline"
               size="sm"
-              className="text-purple-600 border-purple-200 hover:bg-purple-50"
+              className="text-primary border-primary/30 hover:bg-accent"
             >
               Skip to Chat (Testing)
             </Button>
           </div>
         )}
 
-        <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+        <Card className="shadow-xl border-0 bg-card/90 backdrop-blur-sm">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl font-light text-gray-800">
+            <CardTitle className="text-2xl font-light text-card-foreground">
               Welcome to TheraSage 🌸
             </CardTitle>
-            <p className="text-gray-600 text-sm">
+            <p className="text-muted-foreground text-sm">
               {isSignUp ? "Create your safe space" : "Welcome back"}
             </p>
           </CardHeader>
@@ -124,7 +124,7 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
             <Button
               onClick={handleGoogleLogin}
               variant="outline"
-              className="w-full py-3 text-gray-700 border-gray-200 hover:border-purple-200 hover:bg-purple-50/50 transition-all duration-300"
+              className="w-full py-3 text-card-foreground border-border hover:border-primary/30 hover:bg-accent/50 transition-all duration-300"
               disabled={isLoading}
             >
               <span className="mr-2">🌟</span>
@@ -133,10 +133,10 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
+                <div className="w-full border-t border-border"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">or</span>
+                <span className="px-4 bg-card text-muted-foreground">or</span>
               </div>
             </div>
 
@@ -149,7 +149,7 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
                     placeholder="Your name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full py-3 border-gray-200 rounded-xl focus:border-purple-300 focus:ring-purple-200"
+                    className="w-full py-3 border-border rounded-xl focus:border-primary focus:ring-primary/20"
                     required
                     disabled={isLoading}
                   />
@@ -182,12 +182,12 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
 
               <Button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                className="w-full py-3 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-primary-foreground rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <span className="flex items-center">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2"></div>
                     {isSignUp ? "Creating account..." : "Signing in..."}
                   </span>
                 ) : (
@@ -201,7 +201,7 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
             <div className="text-center">
               <button
                 onClick={() => setIsSignUp(!isSignUp)}
-                className="text-purple-500 hover:text-purple-600 text-sm transition-colors duration-200"
+                className="text-primary hover:text-primary/80 text-sm transition-colors duration-200"
                 disabled={isLoading}
               >
                 {isSignUp 
@@ -210,8 +210,8 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
               </button>
             </div>
 
-            <div className="bg-purple-50/50 rounded-xl p-4 text-center">
-              <p className="text-xs text-gray-600">
+            <div className="bg-accent/30 rounded-xl p-4 text-center">
+              <p className="text-xs text-muted-foreground">
                 🔒 Your information is encrypted and completely private. 
                 We'll never share your personal details.
               </p>

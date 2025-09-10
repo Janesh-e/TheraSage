@@ -21,18 +21,22 @@ const ReadAloudToggle = ({ onToggle, enabled }: ReadAloudToggleProps) => {
   }
 
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center space-x-3 bg-card rounded-lg p-2 shadow-sm border border-border">
       {enabled ? (
-        <Volume2 size={16} className="text-purple-500" />
+        <Volume2 size={16} className="text-green-500" />
       ) : (
-        <VolumeX size={16} className="text-gray-400" />
+        <VolumeX size={16} className="text-muted-foreground" />
       )}
       <Switch
         checked={enabled}
         onCheckedChange={onToggle}
-        className="data-[state=checked]:bg-purple-500"
+        className={enabled ? "data-[state=checked]:bg-green-500" : "data-[state=unchecked]:bg-muted"}
       />
-      <span className="text-sm text-gray-600">Read Aloud</span>
+      <span className={`text-xs font-medium px-2 py-1 rounded-md transition-colors ${
+        enabled ? "bg-green-500 text-white" : "text-muted-foreground"
+      }`}>
+        Read Aloud
+      </span>
     </div>
   );
 };

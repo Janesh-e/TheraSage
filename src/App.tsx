@@ -2,8 +2,12 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Download, Search, Plus } from "lucide-react";
+import { ThemeProvider } from "./components/ThemeProvider";
 import Layout from "./components/Layout";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
@@ -17,22 +21,78 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/chat" element={<Layout><ChatPage /></Layout>} />
-          <Route path="/journal" element={<Layout><Journal /></Layout>} />
-          <Route path="/messages" element={<Layout><Messages /></Layout>} />
-          <Route path="/community" element={<Layout><Community /></Layout>} />
-          <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider defaultTheme="light" storageKey="therasage-ui-theme">
+      <TooltipProvider>
+        <BrowserRouter>
+          <div className="min-h-screen w-full bg-background text-foreground overflow-x-hidden">
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/chat" element={<ChatPage />} />
+              <Route path="/journal" element={
+                <Layout 
+                  title="Your Journal" 
+                  description="Reflecting on your emotional journey"
+                >
+                  <Journal />
+                </Layout>
+              } />
+              <Route path="/messages" element={
+                <Layout 
+                  title="Messages" 
+                  description="Connect with peers anonymously or communicate with your assigned therapist"
+                >
+                  <Messages />
+                </Layout>
+              } />
+              <Route path="/community" element={
+                <Layout 
+                  title="Communities" 
+                  description="Connect with others on similar journeys"
+                  action={
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input placeholder="Search communities..." className="pl-10 w-80 bg-card border-border focus:border-primary" />
+                      </div>
+                      <Button 
+                        className="bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white shadow-md hover:shadow-lg transition-all duration-200"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Post
+                      </Button>
+                    </div>
+                  }
+                >
+                  <Community />
+                </Layout>
+              } />
+              <Route path="/dashboard" element={
+                <Layout 
+                  title="Your Emotional Journey" 
+                  description="A safe space to reflect, grow, and understand yourself better"
+                  action={
+                    <Button 
+                      variant="outline" 
+                      className="bg-card shadow-sm border-border hover:bg-accent hover:border-primary/20 transition-all duration-200"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Data
+                    </Button>
+                  }
+                >
+                  <Dashboard />
+                </Layout>
+              } />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </div>
+          
+          {/* Toast notifications positioned properly */}
+          <Toaster />
+          <Sonner />
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

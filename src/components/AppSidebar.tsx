@@ -14,6 +14,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { ThemeToggle } from "./ThemeToggle";
 
 const navigationItems = [
   {
@@ -53,47 +54,48 @@ const AppSidebar = () => {
   const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar className="border-r border-white/50 bg-white/60 backdrop-blur-sm">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
-            <span className="text-white text-sm">💜</span>
+    <Sidebar className="border-r border-sidebar-border bg-sidebar">
+      <SidebarHeader className="px-6 py-5 border-b border-sidebar-border/50">
+        <div className="flex items-center space-x-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-md">
+            <span className="text-white text-lg font-bold">T</span>
           </div>
           {!isCollapsed && (
-            <div>
-              <h2 className="text-lg font-medium text-gray-800">TheraSage</h2>
-              <p className="text-xs text-gray-500">Your emotional companion</p>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-sidebar-foreground">TheraSage</h2>
+              <p className="text-xs text-muted-foreground font-medium">Mental wellness companion</p>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-4 py-6">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-gray-600 font-medium">
+          <SidebarGroupLabel className="text-sidebar-foreground/70 text-xs font-semibold uppercase tracking-wider px-3 mb-4">
             {!isCollapsed ? "Navigation" : ""}
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-2">
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url}
                       end
-                      className={({ isActive }) => 
-                        `flex items-center space-x-3 px-3 py-2.5 rounded-2xl transition-all duration-200 ${
-                          isActive 
-                            ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 shadow-sm' 
-                            : 'text-gray-600 hover:bg-white/80 hover:text-gray-800'
-                        }`
-                      }
                     >
-                      <item.icon className="w-5 h-5 flex-shrink-0" />
-                      {!isCollapsed && (
-                        <div>
-                          <div className="font-medium">{item.title}</div>
-                          <div className="text-xs opacity-70">{item.description}</div>
+                      {({ isActive }) => (
+                        <div className={`flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                          isActive 
+                            ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm border border-primary/20 backdrop-blur-sm' 
+                            : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground hover:shadow-sm'
+                        }`}>
+                          <item.icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'}`} />
+                          {!isCollapsed && (
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold truncate">{item.title}</div>
+                              <div className="text-xs opacity-70 truncate">{item.description}</div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </NavLink>
@@ -105,10 +107,13 @@ const AppSidebar = () => {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
-        <div className="flex items-center space-x-3 text-gray-500">
-          <Settings className="w-4 h-4" />
-          {!isCollapsed && <span className="text-sm">Settings</span>}
+      <SidebarFooter className="px-6 py-4 border-t border-sidebar-border/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3 text-muted-foreground hover:text-sidebar-foreground transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-sidebar-accent/30">
+            <Settings className="w-4 h-4" />
+            {!isCollapsed && <span className="text-sm font-medium">Settings</span>}
+          </div>
+          <ThemeToggle />
         </div>
       </SidebarFooter>
     </Sidebar>

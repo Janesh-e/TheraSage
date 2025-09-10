@@ -2,95 +2,194 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Modern Dashboard UI - Next Generation Design System */
 
+:root {
+  /* Color Palette - Blue-Yellow System */
+  --background: #FEFEFE;
+  --foreground: #000000;
+  --card: #FFFFFF;
+  --card-foreground: #000000;
+  --popover: #FFFFFF;
+  --popover-foreground: #000000;
+  --primary: #F59E0B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F59E0B;
+  --secondary-foreground: #FFFFFF;
+  --muted: #F3F4F6;
+  --muted-foreground: #6B7280;
+  --accent: #E0F2FE;
+  --accent-foreground: #374151;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #D1D5DB;
+  --input: #D1D5DB;
+  --ring: #F59E0B;
+  /* Chart Colors */
+  --chart-1: #F59E0B;
+  --chart-2: #F59E0B;
+  --chart-3: #10B981;
+  --chart-4: #8B5CF6;
+  --chart-5: #EF4444;
+
+  /* Sidebar */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #374151;
+  --sidebar-primary: #;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E0F2FE;
+  --sidebar-accent-foreground: #374151;
+  --sidebar-border: #D1D5DB;
+  --sidebar-ring: #F59E0B;
+
+  /* Typography */
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-serif: Lora, Georgia, serif;
+  --font-mono: Fira Code, Consolas, monospace;
+
+  /* Spacing System - 4px base unit */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius: 12px;
+
+  /* Shadows - Light Mode */
+  --shadow-xs: 0px 4px 12px -2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0px 4px 12px -2px rgba(0, 0, 0, 0.08), 0px 1px 2px -3px rgba(0, 0, 0, 0.08);
+  --shadow: 0px 4px 12px -2px rgba(0, 0, 0, 0.08), 0px 1px 2px -3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0px 4px 12px -2px rgba(0, 0, 0, 0.08), 0px 2px 4px -3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0px 4px 12px -2px rgba(0, 0, 0, 0.08), 0px 4px 6px -3px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0px 4px 12px -2px rgba(0, 0, 0, 0.08);
+  --shadow-2xl: 0px 4px 12px -2px rgba(0, 0, 0, 0.20);
+
+  /* Typography Scale */
+  --text-display-large: 36px;
+  --text-heading-medium: 18px;
+  --text-body-regular: 14px;
+  --text-body-small: 12px;
+  --text-button: 14px;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.025em;
+  --tracking-normal: normal;
+  --tracking-wide: 0.025em;
+
+  /* Persistent brand oranges */
+  --orange-primary: #F97316;
+  /* solid orange */
+  --orange-primary-foreground: #FFFFFF;
+}
+
+.dark {
+  /* Dark Mode Color Palette */
+  --background: #1F2937;
+  --foreground: #F9FAFB;
+  --card: #374151;
+  --card-foreground: #F9FAFB;
+  --popover: #374151;
+  --popover-foreground: #F9FAFB;
+  --primary: #F59E0B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #10B981;
+  --secondary-foreground: #1F2937;
+  --muted: #4B5563;
+  --muted-foreground: #6B7280;
+  --accent: #4B5563;
+  --accent-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #4B5563;
+  --input: #4B5563;
+  --ring: #8B5CF6;
+
+  /* Chart Colors - Dark Mode */
+  --chart-1: #8B5CF6;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #F59E0B;
+  --chart-5: #EF4444;
+
+  /* Keep orange consistent in dark mode */
+  --orange-primary: #F97316;
+  --orange-primary-foreground: #1F2937;
+
+  /* Sidebar - Dark Mode */
+  --sidebar: #374151;
+  --sidebar-foreground: #F9FAFB;
+  --sidebar-primary: #F59E0B;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #4B5563;
+  --sidebar-accent-foreground: #F9FAFB;
+  --sidebar-border: #4B5563;
+  --sidebar-ring: #F59E0B;
+
+  /* Shadows - Dark Mode */
+  --shadow-xs: 0px 4px 12px -2px rgba(0, 0, 0, 0.20);
+  --shadow-sm: 0px 4px 12px -2px rgba(0, 0, 0, 0.40), 0px 1px 2px -3px rgba(0, 0, 0, 0.40);
+  --shadow: 0px 4px 12px -2px rgba(0, 0, 0, 0.40), 0px 1px 2px -3px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0px 4px 12px -2px rgba(0, 0, 0, 0.40), 0px 2px 4px -3px rgba(0, 0, 0, 0.40);
+  --shadow-lg: 0px 4px 12px -2px rgba(0, 0, 0, 0.40), 0px 4px 6px -3px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0px 4px 12px -2px rgba(0, 0, 0, 0.40);
+  --shadow-2xl: 0px 4px 12px -2px rgba(0, 0, 0, 1.00);
+}
+
+/* Tailwind-compatible color variables */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Extended radius system */
+    --radius-xs: 4px;
+    --radius-sm: var(--radius-sm);
+    --radius-md: var(--radius-md);
+    --radius-lg: var(--radius-lg);
+    --radius-xl: var(--radius-xl);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Teal-Orange system for specific components */
+    --teal-orange-gradient: linear-gradient(135deg, #14B8A6 0%, #F97316 100%);
+    --teal-primary: #14B8A6;
+    --orange-primary: #F97316;
+    --green-primary: #10B981;
   }
 }
 
@@ -99,7 +198,19 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-size: var(--text-body-regular);
+    line-height: 1.5;
+    letter-spacing: var(--tracking-normal);
   }
 }

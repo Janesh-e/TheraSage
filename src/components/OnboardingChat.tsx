@@ -168,26 +168,26 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/30 to-secondary/20 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-64 h-64 bg-purple-200/20 rounded-full animate-pulse blur-3xl"></div>
-        <div className="absolute top-40 right-32 w-48 h-48 bg-pink-200/20 rounded-full animate-pulse delay-1000 blur-3xl"></div>
-        <div className="absolute bottom-32 left-1/4 w-32 h-32 bg-blue-200/20 rounded-full animate-pulse delay-2000 blur-3xl"></div>
-        <div className="absolute top-1/3 right-1/4 w-40 h-40 bg-yellow-200/20 rounded-full animate-pulse delay-3000 blur-3xl"></div>
+        <div className="absolute top-20 left-20 w-64 h-64 bg-primary/10 rounded-full animate-pulse blur-3xl"></div>
+        <div className="absolute top-40 right-32 w-48 h-48 bg-secondary/10 rounded-full animate-pulse delay-1000 blur-3xl"></div>
+        <div className="absolute bottom-32 left-1/4 w-32 h-32 bg-accent/20 rounded-full animate-pulse delay-2000 blur-3xl"></div>
+        <div className="absolute top-1/3 right-1/4 w-40 h-40 bg-secondary/15 rounded-full animate-pulse delay-3000 blur-3xl"></div>
       </div>
 
       {/* Floating decorative elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-32 left-1/4 text-purple-200/30 text-6xl animate-bounce delay-1000">🌸</div>
-        <div className="absolute top-1/2 right-20 text-pink-200/30 text-4xl animate-bounce delay-2000">💜</div>
-        <div className="absolute bottom-40 left-20 text-blue-200/30 text-5xl animate-bounce delay-3000">🌙</div>
-        <div className="absolute top-1/4 right-1/3 text-yellow-200/30 text-3xl animate-bounce delay-4000">✨</div>
+        <div className="absolute top-32 left-1/4 text-primary/20 text-6xl animate-bounce delay-1000">🌸</div>
+        <div className="absolute top-1/2 right-20 text-secondary/25 text-4xl animate-bounce delay-2000">💜</div>
+        <div className="absolute bottom-40 left-20 text-accent/30 text-5xl animate-bounce delay-3000">🌙</div>
+        <div className="absolute top-1/4 right-1/3 text-secondary/20 text-3xl animate-bounce delay-4000">✨</div>
       </div>
 
       {/* Sticky Progress Indicator */}
       {currentStep > 0 && currentStep < questions.length - 1 && (
-        <div className="sticky top-0 z-20 bg-gradient-to-br from-purple-50/90 via-pink-50/90 to-blue-50/90 backdrop-blur-sm border-b border-white/50 p-4">
+        <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-sm border-b border-border p-4">
           <ProgressIndicator 
             current={currentProgress} 
             total={totalSteps} 
@@ -205,9 +205,9 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
         {/* Welcome header for first message */}
         {currentStep === 0 && (
           <div className="text-center mb-8 animate-fade-in">
-            <div className="inline-block p-4 bg-white/60 backdrop-blur-sm rounded-3xl shadow-lg border border-white/50 mb-4">
-              <h2 className="text-2xl font-light text-gray-700">Welcome to your safe space</h2>
-              <p className="text-gray-600 mt-2">Let's get to know each other</p>
+            <div className="inline-block p-4 bg-card/80 backdrop-blur-sm rounded-3xl shadow-lg border border-border mb-4">
+              <h2 className="text-2xl font-light text-card-foreground">Welcome to your safe space</h2>
+              <p className="text-muted-foreground mt-2">Let's get to know each other</p>
             </div>
           </div>
         )}
@@ -232,13 +232,13 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
 
         {showInput && currentQuestion && (
           <div className="animate-fade-in sticky bottom-6 z-10">
-            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/70 max-w-2xl mx-auto">
+            <div className="bg-card/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-border max-w-2xl mx-auto">
               {currentQuestion.type === 'input' && (
                 <div>
                   <input
                     type="text"
                     placeholder={currentQuestion.placeholder}
-                    className="w-full p-4 border-2 border-purple-100 rounded-2xl focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-100 text-lg bg-white/90"
+                    className="w-full p-4 border-2 border-border rounded-2xl focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/20 text-lg bg-input text-foreground"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' && e.currentTarget.value.trim()) {
                         handleResponse(e.currentTarget.value);
@@ -262,7 +262,7 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
                 <div>
                   <textarea
                     placeholder={currentQuestion.placeholder}
-                    className="w-full p-4 border-2 border-purple-100 rounded-2xl focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-100 h-32 resize-none text-lg bg-white/90"
+                    className="w-full p-4 border-2 border-border rounded-2xl focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/20 h-32 resize-none text-lg bg-input text-foreground"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -295,7 +295,7 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
                       key={index}
                       onClick={() => handleResponse(option)}
                       variant="outline"
-                      className="p-6 text-left justify-start bg-white/90 hover:bg-purple-50 border-2 border-purple-100 hover:border-purple-200 rounded-2xl transition-all duration-200 hover:scale-105 hover:shadow-lg text-lg"
+                      className="p-6 text-left justify-start bg-card/90 hover:bg-accent border-2 border-border hover:border-primary/30 rounded-2xl transition-all duration-200 hover:scale-105 hover:shadow-lg text-lg text-card-foreground"
                     >
                       {option}
                     </Button>
@@ -309,17 +309,17 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
         {/* Completion message */}
         {isComplete && (
           <div className="text-center animate-fade-in">
-            <div className="inline-block p-8 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/70 mb-8">
+            <div className="inline-block p-8 bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-border mb-8">
               <div className="text-6xl mb-6">🎉</div>
-              <h2 className="text-3xl font-light text-gray-800 mb-4">
+              <h2 className="text-3xl font-light text-card-foreground mb-4">
                 Welcome to your safe space!
               </h2>
-              <p className="text-gray-600 text-lg">
+              <p className="text-muted-foreground text-lg">
                 I'm {responses[2] || 'here'} whenever you need me, {responses[1] || 'friend'}. 
                 Let's start this journey together. 💜
               </p>
               <div className="mt-6">
-                <div className="w-16 h-1 bg-gradient-to-r from-purple-300 to-pink-300 mx-auto rounded-full"></div>
+                <div className="w-16 h-1 bg-gradient-to-r from-primary to-secondary mx-auto rounded-full"></div>
               </div>
             </div>
           </div>
