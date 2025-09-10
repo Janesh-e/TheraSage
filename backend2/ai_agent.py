@@ -10,6 +10,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
 import asyncio
 import requests
+from datetime import datetime
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -628,21 +630,29 @@ Can you tell me what you're experiencing at this moment?"""
 
     async def process_user_message(self, user_id: str, session_id: str, message: str) -> Dict[str, Any]:
         """Main method to process user message through the AI workflow"""
+        start_time = time.time()
+        
+        # 1. UPDATE USER LAST ACTIVITY
+        self._update_user_activity(user_id)
+        
         # Load Session
         session = self.db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
 
         # Compute next message_order
         next_order = (session.total_messages or 0) + 1
 
-        # Save user message
-        db_message = ChatMessage(
+        # 2. SAVE USER MESSAGE WITH ENHANCED FIELDS
+        user_db_message = ChatMessage(
             session_id=session_id,
             content=message,
             role=MessageRole.USER,
-            message_order=next_order
+            message_order=next_order,
+            created_at=datetime.utcnow()
         )
 
-        self.db.add(db_message)
+        self.db.add(user_db_message)
 
         # Update session counters
         session.total_messages = next_order
@@ -660,33 +670,123 @@ Can you tell me what you're experiencing at this moment?"""
         config = {"configurable": {"thread_id": f"{user_id}_{session_id}"}}
         result = await self.workflow.ainvoke(initial_state, config=config)
 
-        # Extract AI response
+        # Extract AI response and analysis
         ai_message = result["messages"][-1]
+        analysis = result.get("analysis", {})
+        
+        # Calculate response time
+        response_time_ms = int((time.time() - start_time) * 1000)
 
-        # Persist AI response
+        # 3. SAVE AI MESSAGE WITH FULL METADATA
         next_order += 1
-        db_ai = ChatMessage(
+        ai_db_message = ChatMessage(
             session_id=session_id,
             content=ai_message.content,
             role=MessageRole.ASSISTANT,
-            message_order=next_order
+            message_order=next_order,
+            created_at=datetime.utcnow(),
+            
+            # AI Response Metadata
+            ai_model_used="deepseek/deepseek-chat-v3.1:free",
+            response_time_ms=response_time_ms,
+            confidence_score=analysis.get("urgency_level", 5) / 10.0,  # Convert to 0-1 scale
         )
 
-        self.db.add(db_ai)
+        self.db.add(ai_db_message)
+
+        # 4. UPDATE USER MESSAGE WITH RISK ANALYSIS (retroactively)
+        if analysis:
+            user_db_message.risk_indicators = {
+                "cognitive_distortions": analysis.get("cognitive_distortions", []),
+                "risk_factors": analysis.get("risk_factors", []),
+                "detected_patterns": result.get("repetitive_patterns", [])
+            }
+            user_db_message.sentiment_score = self._calculate_sentiment_score(analysis)
+            user_db_message.emotion_analysis = {
+                "emotional_state": analysis.get("emotional_state", "neutral"),
+                "urgency_level": analysis.get("urgency_level", 3),
+                "main_concerns": analysis.get("main_concerns", [])
+            }
+
+        # 5. UPDATE SESSION WITH RISK ASSESSMENT
+        self._update_session_risk_assessment(session, analysis)
+
+        # Final commit
         session.total_messages = next_order
         self.db.commit()
 
-        # Update session summary after every few messages
+        # 6. UPDATE SESSION SUMMARY
         if next_order % 6 == 0:  # Update summary every 6 messages
             await self.context_manager.update_session_summary(session_id)
 
         return {
             "response": ai_message.content,
             "intervention_type": result.get("intervention_type", "contextual_response"),
-            "crisis_detected": result.get("analysis", {}).get("risk_score", 0) >= 7,
-            "analysis": result.get("analysis", {}),
-            "patterns": result.get("repetitive_patterns", [])
+            "crisis_detected": analysis.get("risk_score", 0) >= 7,
+            "analysis": analysis,
+            "patterns": result.get("repetitive_patterns", []),
+            "response_time_ms": response_time_ms
         }
+    
+    def _update_user_activity(self, user_id: str):
+        """Update user's last activity timestamp"""
+        try:
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if user:
+                user.last_activity = datetime.utcnow()
+                self.db.commit()
+        except Exception as e:
+            print(f"Error updating user activity: {e}")
+
+    def _calculate_sentiment_score(self, analysis: Dict) -> float:
+        """Calculate sentiment score based on analysis (-1.0 to 1.0)"""
+        emotional_state = analysis.get("emotional_state", "neutral").lower()
+        urgency_level = analysis.get("urgency_level", 5)
+        
+        # Sentiment mapping
+        positive_emotions = ["hopeful", "calm", "peaceful", "happy", "confident"]
+        negative_emotions = ["anxious", "stressed", "sad", "overwhelmed", "frustrated", "depressed"]
+        
+        if any(emotion in emotional_state for emotion in positive_emotions):
+            base_sentiment = 0.3
+        elif any(emotion in emotional_state for emotion in negative_emotions):
+            base_sentiment = -0.3
+        else:
+            base_sentiment = 0.0
+        
+        # Adjust based on urgency (higher urgency = more negative)
+        urgency_adjustment = (urgency_level - 5) * -0.1
+        
+        # Clamp to -1.0 to 1.0 range
+        final_sentiment = max(-1.0, min(1.0, base_sentiment + urgency_adjustment))
+        
+        return final_sentiment
+
+    def _update_session_risk_assessment(self, session: ChatSession, analysis: Dict):
+        """Update session with risk assessment data"""
+        if not analysis:
+            return
+            
+        risk_score = analysis.get("risk_score", 0)
+        cognitive_distortions = analysis.get("cognitive_distortions", [])
+        risk_factors = analysis.get("risk_factors", [])
+        
+        # Update risk score
+        session.risk_score = float(risk_score)
+        session.last_risk_assessment = datetime.utcnow()
+        
+        # Update risk level based on analysis
+        if risk_score >= 8 or risk_factors:
+            if risk_score >= 9:
+                session.current_risk_level = RiskLevel.CRITICAL
+            elif risk_score >= 7:
+                session.current_risk_level = RiskLevel.HIGH
+            else:
+                session.current_risk_level = RiskLevel.MEDIUM
+        elif cognitive_distortions or risk_score >= 4:
+            session.current_risk_level = RiskLevel.MEDIUM
+        else:
+            session.current_risk_level = RiskLevel.LOW
 
 # Integration function for chat routes
 async def process_ai_conversation(

@@ -47,6 +47,9 @@ async def create_chat_session(
     db.add(new_session)
     db.commit()
     db.refresh(new_session)
+
+    user.last_activity = datetime.utcnow()
+    db.commit()
     
     return new_session
 
@@ -71,8 +74,13 @@ async def rename_chat_session(
         )
     
     # Update the title
+    current_time = datetime.utcnow()
     session.title = new_title
-    session.updated_at = datetime.utcnow()
+    session.updated_at = current_time
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.last_activity = current_time
     
     db.commit()
     db.refresh(session)
@@ -98,6 +106,10 @@ async def delete_chat_session(
             detail="Session not found or access denied"
         )
     
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.last_activity = datetime.utcnow()
+
     # Delete the session (messages will be deleted due to cascade)
     db.delete(session)
     db.commit()
@@ -109,7 +121,8 @@ async def get_user_sessions(
     user_id: str,
     db: Session = Depends(get_db),
     skip: int = 0,
-    limit: int = 50
+    limit: int = 50,
+    include_archived: bool = False
 ):
     """Get all chat sessions for a user"""
     # Verify user exists
@@ -120,10 +133,19 @@ async def get_user_sessions(
             detail="User not found"
         )
     
-    sessions = db.query(ChatSession).filter(
-        ChatSession.user_id == user_id,
-        ChatSession.is_active == True
-    ).order_by(ChatSession.updated_at.desc()).offset(skip).limit(limit).all()
+    user.last_activity = datetime.utcnow()
+    db.commit()
+
+    query = db.query(ChatSession).filter(ChatSession.user_id == user_id)
+
+    if not include_archived:
+        query = query.filter(ChatSession.is_archived == False)
+    
+    query = query.filter(ChatSession.is_active == True)
+    
+    sessions = query.order_by(
+        ChatSession.last_message_at.desc()
+    ).offset(skip).limit(limit).all()
     
     return sessions
 
@@ -145,4 +167,77 @@ async def get_chat_session(
             detail="Session not found or access denied"
         )
     
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.last_activity = datetime.utcnow()
+        db.commit()
+    
     return session
+
+@router.put("/{session_id}/risk")
+async def update_session_risk(
+    session_id: str,
+    risk_data: dict,
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """Update session risk assessment"""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user_id
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied")
+    
+    # Update risk assessment
+    current_time = datetime.utcnow()
+    
+    if "risk_score" in risk_data:
+        session.risk_score = float(risk_data["risk_score"])
+    
+    if "risk_level" in risk_data:
+        try:
+            session.current_risk_level = RiskLevel(risk_data["risk_level"])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid risk level")
+    
+    session.last_risk_assessment = current_time
+    session.updated_at = current_time
+    
+    db.commit()
+    
+    return {
+        "message": "Risk assessment updated",
+        "session_id": str(session.id),
+        "risk_score": session.risk_score,
+        "risk_level": session.current_risk_level.value,
+        "last_assessment": session.last_risk_assessment
+    }
+
+
+@router.put("/{session_id}/archive")
+async def archive_session(
+    session_id: str,
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """Archive a session"""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user_id
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied")
+    
+    current_time = datetime.utcnow()
+    session.is_archived = True
+    session.updated_at = current_time
+    
+    # Update user activity
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.last_activity = current_time
+    
+    db.commit()

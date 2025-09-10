@@ -88,9 +88,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Account is deactivated"
         )
+    
+    current_time = datetime.utcnow()
+    user.last_login = current_time
+    user.last_activity = current_time
 
-    # Update last login timestamp
-    user.last_login = datetime.utcnow()
     db.commit()
 
     # Create access token
@@ -109,6 +111,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             "name": user.name,
             "email": user.email,
             "anonymous_username": user.anonymous_username,
-            "college_name": user.college_name
+            "college_name": user.college_name,
+            "last_login": user.last_login.isoformat() if user.last_login else None
         }
     }
