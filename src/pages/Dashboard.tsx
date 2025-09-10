@@ -208,22 +208,24 @@ const Dashboard = () => {
               {journalEntries.map((entry, index) => (
                 <div
                   key={index}
-                  className="p-4 bg-gradient-to-r from-purple-50/50 to-pink-50/50 rounded-2xl border border-purple-100/50"
+                  className="p-4 bg-accent/20 rounded-2xl border border-border"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium text-card-foreground">
                       {entry.title}
                     </h4>
-                    <span className="text-xs text-gray-500">{entry.date}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {entry.date}
+                    </span>
                   </div>
-                  <p className="text-sm text-gray-600 leading-relaxed">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
                     {entry.preview}
                   </p>
                 </div>
               ))}
               <Button
                 variant="ghost"
-                className="w-full mt-4 text-purple-600 hover:bg-purple-50"
+                className="w-full mt-4 text-primary hover:bg-accent"
               >
                 View All Entries
               </Button>
@@ -243,21 +245,23 @@ const Dashboard = () => {
               {cbtExercises.map((exercise, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 rounded-2xl border border-blue-100/50"
+                  className="flex items-center justify-between p-3 bg-accent/20 rounded-2xl border border-border"
                 >
                   <div>
                     <h4 className="font-medium text-card-foreground">
                       {exercise.name}
                     </h4>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground">
                       Used {exercise.used} times
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-lg font-semibold text-indigo-600">
+                    <div className="text-lg font-semibold text-primary">
                       {exercise.helpfulness}/10
                     </div>
-                    <div className="text-xs text-gray-500">Helpfulness</div>
+                    <div className="text-xs text-muted-foreground">
+                      Helpfulness
+                    </div>
                   </div>
                 </div>
               ))}
@@ -304,20 +308,22 @@ const Dashboard = () => {
             {/* Goal Tracker */}
             <Card className="bg-card/90 backdrop-blur-sm border-border shadow-lg rounded-xl">
               <CardHeader className="pb-4">
-                <CardTitle className="flex items-center text-gray-800">
-                  <Target className="w-5 h-5 mr-2 text-orange-500" />
+                <CardTitle className="flex items-center text-card-foreground">
+                  <Target className="w-5 h-5 mr-2 text-primary" />
                   This Week
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-muted-foreground">
                       Journal Sessions
                     </span>
-                    <span className="text-sm font-medium">3/3 ✨</span>
+                    <span className="text-sm font-medium text-foreground">
+                      3/3 ✨
+                    </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-accent rounded-full h-2">
                     <div
                       className="h-2 rounded-full w-full"
                       style={{ backgroundColor: "var(--orange-primary)" }}
@@ -326,10 +332,14 @@ const Dashboard = () => {
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Check-ins</span>
-                    <span className="text-sm font-medium">5/7</span>
+                    <span className="text-sm text-muted-foreground">
+                      Check-ins
+                    </span>
+                    <span className="text-sm font-medium text-foreground">
+                      5/7
+                    </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-accent rounded-full h-2">
                     <div
                       className="h-2 rounded-full"
                       style={{
@@ -345,17 +355,17 @@ const Dashboard = () => {
             {/* Privacy Reminder */}
             <Card className="bg-card/90 backdrop-blur-sm border-border shadow-lg rounded-xl">
               <CardHeader className="pb-4">
-                <CardTitle className="flex items-center text-gray-800">
-                  <Shield className="w-5 h-5 mr-2 text-emerald-500" />
+                <CardTitle className="flex items-center text-card-foreground">
+                  <Shield className="w-5 h-5 mr-2 text-green-500" />
                   Your Privacy
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                   Everything here is completely private and belongs to you. Your
                   thoughts, emotions, and reflections are secure.
                 </p>
-                <div className="flex items-center text-xs text-emerald-600">
+                <div className="flex items-center text-xs text-green-400">
                   <Shield className="w-3 h-3 mr-1" />
                   End-to-end encrypted
                 </div>

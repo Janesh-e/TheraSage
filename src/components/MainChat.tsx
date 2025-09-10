@@ -200,7 +200,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center space-x-4">
                 <SidebarTrigger className="p-2 hover:bg-accent rounded-lg transition-colors" />
-                <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-md">
                   <span className="text-xl font-bold text-white">T</span>
                 </div>
                 <div>
@@ -210,7 +210,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                   <div className="flex items-center space-x-2">
                     <div
                       className={`w-2.5 h-2.5 rounded-full shadow-sm ${
-                        llmMode === "online" ? "bg-green-500" : "bg-gradient-to-r from-teal-500 to-orange-500"
+                        llmMode === "online" ? "bg-green-500" : "bg-primary"
                       }`}
                     ></div>
                     <span className="text-sm text-muted-foreground font-medium">
@@ -279,7 +279,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                 </div>
                 <Button
                   onClick={handleSendMessage}
-                  className="bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white rounded-xl w-12 h-12 flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 flex-shrink-0"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl w-12 h-12 flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 flex-shrink-0"
                   disabled={!input.trim() && !isRecording}
                   size="icon"
                 >

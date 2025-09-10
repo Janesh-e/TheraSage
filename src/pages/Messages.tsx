@@ -132,7 +132,7 @@ const Messages = () => {
       case "online":
         return "bg-green-500";
       case "scheduled":
-        return "bg-gradient-to-r from-teal-500 to-orange-500";
+        return "bg-primary";
       default:
         return "bg-muted-foreground";
     }
@@ -216,7 +216,7 @@ const Messages = () => {
                           {session.timestamp}
                         </span>
                         {session.unread > 0 && (
-                          <Badge className="h-6 w-6 rounded-full p-0 flex items-center justify-center text-xs bg-gradient-to-r from-teal-500 to-orange-500 text-white shadow-sm">
+                          <Badge className="h-6 w-6 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground shadow-sm">
                             {session.unread}
                           </Badge>
                         )}
@@ -297,7 +297,7 @@ const Messages = () => {
                       <div
                         className={`max-w-[75%] ${
                           message.sender === "me"
-                            ? "bg-gradient-to-r from-teal-500 to-orange-500 text-white"
+                            ? "bg-primary text-primary-foreground"
                             : "bg-card border border-border text-card-foreground"
                         } rounded-xl p-4 shadow-sm`}
                       >
@@ -339,7 +339,7 @@ const Messages = () => {
                     />
                     <Button
                       onClick={handleSendMessage}
-                      className="h-12 px-6 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
+                      className="h-12 px-6 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
                     >
                       <Send className="h-5 w-5" />
                     </Button>
