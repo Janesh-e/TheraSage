@@ -196,7 +196,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="flex-shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 py-4 shadow-sm">
+          <header className="flex-shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 py-[19px] shadow-sm">
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center space-x-4">
                 <SidebarTrigger className="p-2 hover:bg-accent rounded-lg transition-colors" />

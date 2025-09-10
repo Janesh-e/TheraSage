@@ -1,5 +1,13 @@
-
-import { Home, MessageSquare, BookOpen, BarChart3, Settings, Users, Mail, Library } from "lucide-react";
+import {
+  Home,
+  MessageSquare,
+  BookOpen,
+  BarChart3,
+  Settings,
+  Users,
+  Mail,
+  Library,
+} from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -18,40 +26,40 @@ import { ThemeToggle } from "./ThemeToggle";
 
 const navigationItems = [
   {
-    title: "Dashboard", 
-    url: "/dashboard", 
+    title: "Dashboard",
+    url: "/dashboard",
     icon: BarChart3,
-    description: "Your emotional journey"
+    description: "Your emotional journey",
   },
   {
-    title: "Chat", 
-    url: "/chat", 
+    title: "Chat",
+    url: "/chat",
     icon: MessageSquare,
-    description: "Talk with TheraSage"
+    description: "Talk with TheraSage",
   },
   {
-    title: "Journal", 
-    url: "/journal", 
+    title: "Journal",
+    url: "/journal",
     icon: BookOpen,
-    description: "Your reflections"
+    description: "Your reflections",
   },
   {
-    title: "Messages", 
-    url: "/messages", 
+    title: "Messages",
+    url: "/messages",
     icon: Mail,
-    description: "Peer & therapist chats"
+    description: "Peer & therapist chats",
   },
   {
-    title: "Community", 
-    url: "/community", 
+    title: "Community",
+    url: "/community",
     icon: Users,
-    description: "Connect with others"
+    description: "Connect with others",
   },
   {
-    title: "Resources", 
-    url: "/resources", 
+    title: "Resources",
+    url: "/resources",
     icon: Library,
-    description: "Wellness resources"
+    description: "Wellness resources",
   },
 ];
 
@@ -67,9 +75,13 @@ const AppSidebar = () => {
             <span className="text-white text-lg font-bold">T</span>
           </div>
           {!isCollapsed && (
-            <div className="flex-1">
-              <h2 className="text-lg font-bold text-sidebar-foreground">TheraSage</h2>
-              <p className="text-xs text-muted-foreground font-medium">Mental wellness companion</p>
+            <div className="flex-1 h-11">
+              <h2 className="text-sm font-semibold text-sidebar-foreground">
+                TheraSage
+              </h2>
+              <p className="text-[10px] text-muted-foreground font-normal leading-none">
+                Mental wellness companion
+              </p>
             </div>
           )}
         </div>
@@ -85,21 +97,30 @@ const AppSidebar = () => {
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url}
-                      end
-                    >
+                    <NavLink to={item.url} end>
                       {({ isActive }) => (
-                        <div className={`flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                          isActive 
-                            ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm border border-primary/20 backdrop-blur-sm' 
-                            : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground hover:shadow-sm'
-                        }`}>
-                          <item.icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-sidebar-foreground/60 group-hover:text-sidebar-foreground'}`} />
+                        <div
+                          className={`flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                            isActive
+                              ? "bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm border border-primary/20 backdrop-blur-sm"
+                              : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground hover:shadow-sm"
+                          }`}
+                        >
+                          <item.icon
+                            className={`w-5 h-5 flex-shrink-0 transition-colors ${
+                              isActive
+                                ? "text-primary"
+                                : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground"
+                            }`}
+                          />
                           {!isCollapsed && (
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold truncate">{item.title}</div>
-                              <div className="text-xs opacity-70 truncate">{item.description}</div>
+                              <div className="text-sm font-semibold truncate">
+                                {item.title}
+                              </div>
+                              <div className="text-xs opacity-70 truncate">
+                                {item.description}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -117,7 +138,9 @@ const AppSidebar = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3 text-muted-foreground hover:text-sidebar-foreground transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-sidebar-accent/30">
             <Settings className="w-4 h-4" />
-            {!isCollapsed && <span className="text-sm font-medium">Settings</span>}
+            {!isCollapsed && (
+              <span className="text-sm font-medium">Settings</span>
+            )}
           </div>
           <ThemeToggle />
         </div>
