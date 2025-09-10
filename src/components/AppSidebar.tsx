@@ -1,5 +1,5 @@
 
-import { Home, MessageSquare, BookOpen, BarChart3, Settings, Users, Mail } from "lucide-react";
+import { Home, MessageSquare, BookOpen, BarChart3, Settings, Users, Mail, Library } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -46,6 +46,12 @@ const navigationItems = [
     url: "/community", 
     icon: Users,
     description: "Connect with others"
+  },
+  {
+    title: "Resources", 
+    url: "/resources", 
+    icon: Library,
+    description: "Wellness resources"
   },
 ];
 

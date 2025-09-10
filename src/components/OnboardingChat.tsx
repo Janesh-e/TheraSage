@@ -218,7 +218,7 @@ const OnboardingChat = ({ isSignedUp }: OnboardingChatProps) => {
               <ChatBubble
                 message={message.content}
                 isBot={message.type === 'question'}
-                delay={0}
+                timestamp={new Date()}
               />
             </div>
           ))}

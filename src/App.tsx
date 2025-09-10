@@ -15,6 +15,7 @@ import ChatPage from "./pages/ChatPage";
 import Journal from "./pages/Journal";
 import Messages from "./pages/Messages";
 import Community from "./pages/Community";
+import ResourceHub from "./pages/ResourceHub";
 
 const queryClient = new QueryClient();
 
@@ -92,6 +93,17 @@ const App = () => (
                     }
                   >
                     <Dashboard />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/resources"
+                element={
+                  <Layout
+                    title="Resource Hub"
+                    description="Discover articles, audiobooks, and videos to support your mental health journey"
+                  >
+                    <ResourceHub />
                   </Layout>
                 }
               />
