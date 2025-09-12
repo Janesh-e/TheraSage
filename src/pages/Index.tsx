@@ -86,6 +86,16 @@ const Index = () => {
           >
             Sign up for personalized help 🌸
           </button>
+          
+          <div className="pt-md border-t border-border/50">
+            <p className="text-body-sm text-muted-foreground mb-md">Healthcare professional?</p>
+            <button
+              onClick={() => window.location.href = '/therapist/dashboard'}
+              className="w-full max-w-sm bg-accent text-accent-foreground px-xl py-lg rounded-lg text-button font-medium shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 border border-accent-foreground/20 hover:border-accent-foreground/40"
+            >
+              Therapist Portal 🏥
+            </button>
+          </div>
         </div>
 
         {/* Privacy Reassurance */}
