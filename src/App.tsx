@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Download, Search, Plus } from "lucide-react";
 import { ThemeProvider } from "./components/ThemeProvider";
 import Layout from "./components/Layout";
+import TherapistLayout from "./components/TherapistLayout";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -16,6 +17,8 @@ import Journal from "./pages/Journal";
 import Messages from "./pages/Messages";
 import Community from "./pages/Community";
 import ResourceHub from "./pages/ResourceHub";
+import TherapistDashboard from "./pages/TherapistDashboard";
+import TherapistCrisis from "./pages/TherapistCrisis";
 
 const queryClient = new QueryClient();
 
@@ -107,6 +110,31 @@ const App = () => (
                   </Layout>
                 }
               />
+              
+              {/* Therapist Routes */}
+              <Route
+                path="/therapist/dashboard"
+                element={
+                  <TherapistLayout
+                    title="Therapist Dashboard"
+                    description="Monitor crisis alerts, manage sessions, and track your workload"
+                  >
+                    <TherapistDashboard />
+                  </TherapistLayout>
+                }
+              />
+              <Route
+                path="/therapist/crisis"
+                element={
+                  <TherapistLayout
+                    title="Crisis Management"
+                    description="Review and respond to crisis alerts from students"
+                  >
+                    <TherapistCrisis />
+                  </TherapistLayout>
+                }
+              />
+              
               <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
