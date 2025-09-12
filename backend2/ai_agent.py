@@ -14,6 +14,8 @@ from datetime import datetime
 import time
 from dotenv import load_dotenv
 
+from crisis_alert_manager import CrisisAlertManager
+
 load_dotenv()
 
 from models import (
@@ -188,6 +190,9 @@ class EmotionalSupportAgent:
 
     def __init__(self, db: Session):
         self.db = db
+
+        # Initialize crisis alert manager
+        self.crisis_manager = CrisisAlertManager(db)
         
         # Get API key from environment
         self.api_key = os.getenv("OPENROUTER_API_KEY")
@@ -535,14 +540,91 @@ Specific to their concern. Be conversational but therapeutic. Maximum 70 words.
         return state
 
     async def _handle_crisis_escalation(self, state: MessagesState) -> MessagesState:
-        """Handle crisis situations with immediate resources"""
+        """Enhanced crisis handling with automatic therapist assignment"""
+        
         analysis = state.get("analysis", {})
         risk_factors = analysis.get("risk_factors", [])
+        user_id = state.get("user_id")
+        session_id = state.get("session_id")
         
-        crisis_resources = f"""I'm genuinely concerned about you right now. Please reach out for immediate support:
+        try:
+            # Create crisis alert with automatic therapist assignment
+            crisis_result = await self.crisis_manager.create_crisis_alert_with_assignment(
+                user_id, session_id, analysis
+            )
+            
+            # Enhanced crisis response based on assignment result
+            if crisis_result["assigned_therapist_id"]:
+                if crisis_result["therapist_session_id"]:
+                    # Emergency session created
+                    crisis_resources = f"""I'm genuinely concerned about you right now and I've immediately connected you with professional help.
+
+🚨 **Immediate Support Activated:**
+• A crisis counselor has been automatically assigned to you
+• An emergency session has been scheduled within the next 30-60 minutes
+• You'll receive session details shortly via email
+
+**Right Now - Immediate Crisis Support:**
+• Crisis Hotline: 988 (24/7)
+• Crisis Text Line: Text HOME to 741741
+• Emergency: 911
+
+**Campus Resources:**
+• Campus Counseling Center (immediate appointment)
+• Campus Safety
+
+Your crisis counselor will reach out to you very soon. You don't have to face this alone - help is on the way.
+
+Can you stay safe until your counselor contacts you? Let me know if you need immediate emergency assistance."""
+
+                else:
+                    # Therapist assigned but no emergency session
+                    crisis_resources = f"""I'm concerned about what you're going through and I've connected you with professional support.
+
+🏥 **Professional Support Assigned:**
+• A qualified counselor has been assigned to your case
+• They will review your situation and contact you within 2-4 hours
+• You'll receive contact information shortly
+
+**Immediate Crisis Support (Available Now):**
+• Crisis Hotline: 988 (24/7)
+• Crisis Text Line: Text HOME to 741741
+• Emergency: 911
+
+**Campus Resources:**
+• Campus Counseling Center
+• Campus Safety
+
+Help is available right now if you need it. Can you tell me how you're feeling at this moment?"""
+            
+            else:
+                # No therapist available - emergency protocol
+                crisis_resources = f"""I'm very concerned about you right now. While our counselors are currently unavailable, immediate help is still accessible.
+
+🚨 **Immediate Crisis Support (Available 24/7):**
+• Crisis Hotline: 988
+• Crisis Text Line: Text HOME to 741741
+• Emergency: 911
+
+**Campus Emergency Resources:**
+• Campus Counseling Center Emergency Line
+• Campus Safety
+• Local Emergency Room
+
+I've flagged your situation as high priority and you'll be contacted as soon as a counselor becomes available.
+
+Please don't hesitate to use the crisis hotline or call 911 if you need immediate help. Can you stay safe right now?"""
+            
+            # Store crisis result in state for logging
+            state["crisis_result"] = crisis_result
+            
+        except Exception as e:
+            print(f"Crisis alert creation failed: {e}")
+            # Fallback crisis response
+            crisis_resources = f"""I'm genuinely concerned about you right now. Please reach out for immediate support:
 
 🚨 **Immediate Crisis Support:**
-• Crisis Hotline: 988 (24/7)
+• Crisis Hotline: 988 (24/7)  
 • Crisis Text Line: Text HOME to 741741
 • Emergency: 911
 
@@ -553,16 +635,11 @@ Specific to their concern. Be conversational but therapeutic. Maximum 70 words.
 You don't have to face this alone. These feelings can change, and help is available right now.
 
 Can you tell me what you're experiencing at this moment?"""
-
+            
+            state["crisis_result"] = {"error": str(e)}
+        
         state["messages"].append(AIMessage(content=crisis_resources))
         state["intervention_type"] = "crisis_escalation"
-        
-        # Log crisis alert
-        await self._create_crisis_alert(
-            state.get("user_id"),
-            state.get("session_id"),
-            analysis
-        )
         
         return state
 
@@ -673,6 +750,7 @@ Can you tell me what you're experiencing at this moment?"""
         # Extract AI response and analysis
         ai_message = result["messages"][-1]
         analysis = result.get("analysis", {})
+        crisis_result = result.get("crisis_result", {})
         
         # Calculate response time
         response_time_ms = int((time.time() - start_time) * 1000)
@@ -725,7 +803,11 @@ Can you tell me what you're experiencing at this moment?"""
             "crisis_detected": analysis.get("risk_score", 0) >= 7,
             "analysis": analysis,
             "patterns": result.get("repetitive_patterns", []),
-            "response_time_ms": response_time_ms
+            "response_time_ms": response_time_ms,
+            "crisis_alert_id": crisis_result.get("crisis_alert_id"),
+            "assigned_therapist_id": crisis_result.get("assigned_therapist_id"), 
+            "therapist_session_id": crisis_result.get("therapist_session_id"),
+            "auto_escalated": crisis_result.get("auto_escalated", False)
         }
     
     def _update_user_activity(self, user_id: str):

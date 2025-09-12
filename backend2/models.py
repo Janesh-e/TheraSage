@@ -46,6 +46,25 @@ class MessageRole(enum.Enum):
     ASSISTANT = "assistant"
     SYSTEM = "system"
 
+class TherapistRole(enum.Enum):
+    COUNSELOR = "counselor"
+    PSYCHOLOGIST = "psychologist" 
+    PSYCHIATRIST = "psychiatrist"
+    CRISIS_SPECIALIST = "crisis_specialist"
+    SUPERVISOR = "supervisor"
+
+class TherapistStatus(enum.Enum):
+    ACTIVE = "active"
+    OFFLINE = "offline"
+    BUSY = "busy"
+    UNAVAILABLE = "unavailable"
+
+class NotificationStatus(enum.Enum):
+    PENDING = "pending"
+    SENT = "sent"
+    READ = "read"
+    FAILED = "failed"
+
 # ===== USER MANAGEMENT =====
 
 class User(Base):
@@ -210,6 +229,8 @@ class CrisisAlert(Base):
     status = Column(String(50), default='pending', index=True)  # pending, acknowledged, escalated, resolved
     escalated_to_human = Column(Boolean, default=False, index=True)
     auto_resources_sent = Column(Boolean, default=False)
+
+    assigned_therapist_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Therapist handling this crisis
     
     # Response tracking
     response_actions = Column(JSON, nullable=True)  # Actions taken (resources sent, session scheduled, etc.)
@@ -228,9 +249,41 @@ class CrisisAlert(Base):
         Index('idx_crisis_user_status', 'user_id', 'status'),
         Index('idx_crisis_risk_detected', 'risk_level', 'detected_at'),
         Index('idx_crisis_type_confidence', 'crisis_type', 'confidence_score'),
+        Index('idx_crisis_assigned_therapist', 'assigned_therapist_id'),
     )
 
 # ===== THERAPIST INTEGRATION =====
+
+class Therapist(Base):
+    """
+    Therapist/counselor accounts for crisis management
+    """
+    __tablename__ = "therapists"
+
+    # Primary identification
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    
+    # Basic info
+    name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    
+    # Professional info
+    role = Column(SQLEnum(TherapistRole), nullable=False, index=True)
+    license_number = Column(String(100), nullable=True)
+    specializations = Column(String(500), nullable=True)  # JSON array as string
+    
+    # College affiliation
+    college_id = Column(String(100), nullable=False, index=True)
+    college_name = Column(String(200), nullable=False)
+    
+    # Status and availability
+    status = Column(SQLEnum(TherapistStatus), default=TherapistStatus.ACTIVE, index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    is_on_call = Column(Boolean, default=False)  # Available for crisis calls
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 class TherapistSession(Base):
     """

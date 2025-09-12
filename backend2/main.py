@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, and_, or_, desc, func
 from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager
 from pydantic import BaseModel, EmailStr
@@ -20,17 +20,18 @@ from ai_agent import process_ai_conversation
 
 from schemas import UserCreate, UserResponse
 from authenticate_utils import generate_anonymous_username, create_access_token, authenticate_user, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from crisis_alert_manager import CrisisAlertManager
 
 # Import database and models
 from db import get_db, engine, Base
 from models import (
-    User, ChatSession, ChatMessage, CrisisAlert, TherapistSession,
+    User, ChatSession, ChatMessage, CrisisAlert, TherapistSession, Therapist, TherapistStatus,
     CommunityPost, Comment, UserMatch, UserAnalytics,
     RiskLevel, CrisisType, SessionStatus, PostStatus, MessageRole
 )
 
 # Import routes
-from routes import sessions, messages, auth
+from routes import sessions, messages, auth, crisis, therapist_dashboard, therapist_session
 
 # Import utility functions
 from stt_utils import transcribe_audio
@@ -85,6 +86,9 @@ app.add_middleware(
 app.include_router(sessions.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(crisis.router, prefix="/api/v1")
+app.include_router(therapist_session.router, prefix="/api/v1")
+app.include_router(therapist_dashboard.router, prefix="/api/v1")
 app.include_router(router, prefix="/api/v1")
 
 # ===== SPEECH-TO-TEXT =====
@@ -163,13 +167,37 @@ async def chat_api(
         logger.info(f"Response generated: {result['intervention_type']}, "
                    f"Crisis: {result['crisis_detected']}")
         
-        return {
+        # Enhanced response with crisis management info
+        response_data = {
             "response": result["response"],
             "intervention": result["intervention_type"],
             "analysis": result.get("analysis", {}),
             "crisis_detected": result["crisis_detected"],
-            "conversation_quality": "enhanced"  # Indicator of new system
+            "conversation_quality": "enhanced"
         }
+        
+        # Include crisis management results if present
+        if result.get("crisis_alert_id"):
+            response_data["crisis_management"] = {
+                "crisis_alert_id": result["crisis_alert_id"],
+                "assigned_therapist_id": result.get("assigned_therapist_id"),
+                "therapist_session_id": result.get("therapist_session_id"),
+                "auto_escalated": result.get("auto_escalated", False),
+                "professional_help_contacted": True,
+                "estimated_response_time": "30-60 minutes" if result.get("auto_escalated") else "2-4 hours"
+            }
+
+        logger.info(f"Response generated: {result['intervention_type']}, Crisis: {result['crisis_detected']}")
+        
+        # Log crisis management actions
+        if result.get("crisis_alert_id"):
+            logger.info(f"🚨 Crisis alert created: {result['crisis_alert_id']}")
+            if result.get("assigned_therapist_id"):
+                logger.info(f"👨‍⚕️ Therapist assigned: {result['assigned_therapist_id']}")
+            if result.get("therapist_session_id"):
+                logger.info(f"📅 Emergency session scheduled: {result['therapist_session_id']}")
+
+        return response_data
     
     except Exception as e:
         logger.error(f"Chat processing error: {e}")
@@ -243,6 +271,80 @@ async def get_user_insights(
         "insights": insights,
         "total_sessions": len(recent_sessions),
         "message": "Conversation insights generated successfully"
+    }
+
+
+# ===== CRISIS MANAGEMENT UTILITY ENDPOINTS =====
+
+@app.get("/api/v1/crisis-system/status")
+async def get_crisis_system_status(db: Session = Depends(get_db)):
+    """Get overall crisis management system status"""
+    
+    crisis_manager = CrisisAlertManager(db)
+    
+    # Get system-wide statistics
+    total_therapists = db.query(Therapist).filter(Therapist.is_active == True).count()
+    active_therapists = db.query(Therapist).filter(
+        and_(Therapist.is_active == True, Therapist.status == TherapistStatus.ACTIVE)
+    ).count()
+    
+    # Get recent crisis activity
+    last_24h = datetime.utcnow() - timedelta(hours=24)
+    recent_crises = db.query(CrisisAlert).filter(
+        CrisisAlert.detected_at >= last_24h
+    ).count()
+    
+    pending_crises = db.query(CrisisAlert).filter(
+        CrisisAlert.status == "pending"
+    ).count()
+    
+    return {
+        "system_status": "operational",
+        "therapist_availability": {
+            "total_therapists": total_therapists,
+            "active_therapists": active_therapists,
+            "availability_rate": round((active_therapists / total_therapists * 100) if total_therapists > 0 else 0, 2)
+        },
+        "crisis_activity": {
+            "alerts_last_24h": recent_crises,
+            "pending_alerts": pending_crises
+        },
+        "last_updated": datetime.utcnow()
+    }
+
+@app.get("/api/v1/crisis-system/colleges/{college_id}/overview")
+async def get_college_crisis_overview(
+    college_id: str, 
+    db: Session = Depends(get_db)
+):
+    """Get crisis management overview for a specific college"""
+    
+    crisis_manager = CrisisAlertManager(db)
+    availability_stats = crisis_manager.get_therapist_availability_stats(college_id)
+    
+    # Get college-specific crisis statistics
+    college_crises = db.query(CrisisAlert).join(User).filter(
+        User.college_id == college_id
+    )
+    
+    total_crises = college_crises.count()
+    pending_crises = college_crises.filter(CrisisAlert.status == "pending").count()
+    critical_crises = college_crises.filter(
+        and_(
+            CrisisAlert.risk_level == RiskLevel.CRITICAL,
+            CrisisAlert.status.in_(["pending", "acknowledged", "escalated"])
+        )
+    ).count()
+    
+    return {
+        "college_id": college_id,
+        "therapist_availability": availability_stats,
+        "crisis_statistics": {
+            "total_alerts": total_crises,
+            "pending_alerts": pending_crises,
+            "critical_alerts": critical_crises
+        },
+        "system_health": "good" if critical_crises == 0 and availability_stats["active_therapists"] > 0 else "attention_needed"
     }
 
 if __name__ == "__main__":
