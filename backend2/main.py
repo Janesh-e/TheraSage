@@ -31,7 +31,7 @@ from models import (
 )
 
 # Import routes
-from routes import sessions, messages, auth, crisis, therapist_dashboard, therapist_session
+from routes import sessions, messages, auth, crisis, therapist_dashboard, therapist_session, community
 
 # Import utility functions
 from stt_utils import transcribe_audio
@@ -89,6 +89,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(crisis.router, prefix="/api/v1")
 app.include_router(therapist_session.router, prefix="/api/v1")
 app.include_router(therapist_dashboard.router, prefix="/api/v1")
+app.include_router(community.router, prefix="/api/v1")
 app.include_router(router, prefix="/api/v1")
 
 # ===== SPEECH-TO-TEXT =====

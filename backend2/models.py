@@ -109,6 +109,8 @@ class User(Base):
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
     crisis_alerts = relationship("CrisisAlert", back_populates="user")
     therapist_sessions = relationship("TherapistSession", back_populates="user")
+    created_communities = relationship("Community", back_populates="creator")
+    community_memberships = relationship("CommunityMembership", cascade="all, delete-orphan")
     community_posts = relationship("CommunityPost", back_populates="author")
     comments = relationship("Comment", back_populates="author")
     user_matches = relationship("UserMatch", foreign_keys="UserMatch.user_id", back_populates="user")
@@ -332,6 +334,129 @@ class TherapistSession(Base):
 
 # ===== COMMUNITY PLATFORM =====
 
+class Community(Base):
+    """
+    Student-created communities with their own rules and moderation
+    """
+    __tablename__ = "communities"
+    
+    # Primary identification
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    
+    # Community basic info
+    title = Column(String(200), nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    rules = Column(Text, nullable=True)  # Community-specific rules
+    
+    # Creator and moderation
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    moderator_ids = Column(JSON, default=list)  # List of user IDs who can moderate
+    
+    # College affiliation (communities are college-specific)
+    college_id = Column(String(100), nullable=False, index=True)
+    
+    # Community settings
+    is_public = Column(Boolean, default=True)  # Public vs private communities
+    allow_posts = Column(Boolean, default=True)
+    require_approval = Column(Boolean, default=False)  # Posts need approval before showing
+    
+    # Community status
+    is_active = Column(Boolean, default=True, index=True)
+    is_featured = Column(Boolean, default=False)  # Featured communities
+    
+    # Engagement metrics
+    member_count = Column(Integer, default=1)  # Creator is first member
+    post_count = Column(Integer, default=0)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    creator = relationship("User", back_populates="created_communities")
+    posts = relationship("CommunityPost", back_populates="community", cascade="all, delete-orphan")
+    memberships = relationship("CommunityMembership", back_populates="community", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_community_college_active', 'college_id', 'is_active'),
+        Index('idx_community_featured', 'is_featured', 'created_at'),
+    )
+
+class CommunityMembership(Base):
+    """
+    Track which users are members of which communities
+    """
+    __tablename__ = "community_memberships"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    community_id = Column(UUID(as_uuid=True), ForeignKey("communities.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Membership status
+    is_moderator = Column(Boolean, default=False)
+    is_banned = Column(Boolean, default=False)
+    
+    # Membership tracking
+    joined_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_activity = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User")
+    community = relationship("Community", back_populates="memberships")
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'community_id', name='uq_user_community_membership'),
+        Index('idx_membership_user_active', 'user_id', 'is_banned'),
+    )
+
+class ModerationAction(Base):
+    """
+    Track all moderation actions taken on posts/comments
+    """
+    __tablename__ = "moderation_actions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    
+    # What was moderated
+    content_type = Column(String(20), nullable=False, index=True)  # 'post' or 'comment'
+    content_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # ID of post or comment
+    
+    # Moderation details
+    action_type = Column(String(50), nullable=False, index=True)  # 'auto_removed', 'flagged', 'approved', 'rejected'
+    reason = Column(String(200), nullable=False)  # Why it was moderated
+    ai_confidence = Column(Float, nullable=True)  # AI confidence score (0.0-1.0)
+    
+    # AI analysis results
+    detected_categories = Column(JSON, nullable=True)  # Categories of harmful content detected
+    toxicity_scores = Column(JSON, nullable=True)  # Detailed toxicity analysis
+    
+    # Content copy (for review purposes)
+    original_content = Column(Text, nullable=False)  # Copy of the moderated content
+    
+    # Moderation context
+    moderator_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Null if automated
+    community_id = Column(UUID(as_uuid=True), ForeignKey("communities.id", ondelete="SET NULL"), nullable=True)
+    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Appeal system
+    can_appeal = Column(Boolean, default=True)
+    appeal_submitted = Column(Boolean, default=False)
+    appeal_resolved = Column(Boolean, default=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    author = relationship("User")
+    community = relationship("Community")
+    
+    __table_args__ = (
+        Index('idx_moderation_content', 'content_type', 'content_id'),
+        Index('idx_moderation_action_created', 'action_type', 'created_at'),
+        Index('idx_moderation_author_community', 'author_id', 'community_id'),
+    )
+
 class CommunityPost(Base):
     """
     Anonymous community posts (Reddit-style)
@@ -339,6 +464,7 @@ class CommunityPost(Base):
     __tablename__ = "community_posts"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    community_id = Column(UUID(as_uuid=True), ForeignKey("communities.id", ondelete="CASCADE"), nullable=True, index=True)
     author_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Post content
@@ -353,6 +479,10 @@ class CommunityPost(Base):
     moderation_flags = Column(JSON, nullable=True)  # AI-detected issues
     human_review_required = Column(Boolean, default=False, index=True)
     auto_resources_attached = Column(Boolean, default=False)  # If AI attached mental health resources
+
+    # AI analysis results
+    toxicity_score = Column(Float, nullable=True)  # Overall toxicity (0.0-1.0)
+    harmful_categories = Column(JSON, nullable=True)  # Categories of harmful content
     
     # Content categorization
     detected_topics = Column(JSON, nullable=True)  # AI-detected topics/themes
@@ -376,6 +506,7 @@ class CommunityPost(Base):
     # Relationships
     author = relationship("User", back_populates="community_posts")
     comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
+    community = relationship("Community", back_populates="posts")
     
     __table_args__ = (
         Index('idx_post_college_status', 'college_id', 'moderation_status'),
@@ -416,6 +547,58 @@ class Comment(Base):
     __table_args__ = (
         Index('idx_comment_post_created', 'post_id', 'created_at'),
         Index('idx_comment_status_created', 'moderation_status', 'created_at'),
+    )
+
+class PostVote(Base):
+    """
+    Upvotes and downvotes for posts
+    """
+    __tablename__ = "post_votes"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    post_id = Column(UUID(as_uuid=True), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Vote type
+    vote_type = Column(String(10), nullable=False)  # 'upvote' or 'downvote'
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    post = relationship("CommunityPost")
+    user = relationship("User")
+    
+    __table_args__ = (
+        UniqueConstraint('post_id', 'user_id', name='uq_post_user_vote'),
+        Index('idx_vote_post_type', 'post_id', 'vote_type'),
+    )
+
+class CommentVote(Base):
+    """
+    Upvotes and downvotes for comments
+    """
+    __tablename__ = "comment_votes"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    comment_id = Column(UUID(as_uuid=True), ForeignKey("comments.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Vote type
+    vote_type = Column(String(10), nullable=False)  # 'upvote' or 'downvote'
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    comment = relationship("Comment")
+    user = relationship("User")
+    
+    __table_args__ = (
+        UniqueConstraint('comment_id', 'user_id', name='uq_comment_user_vote'),
+        Index('idx_comment_vote_type', 'comment_id', 'vote_type'),
     )
 
 # ===== PEER MATCHING SYSTEM =====

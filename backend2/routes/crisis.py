@@ -9,7 +9,7 @@ from db import get_db
 from models import (
     CrisisAlert, User, ChatSession, ChatMessage, TherapistSession,
     RiskLevel, CrisisType, SessionStatus, MessageRole,
-    Therapist, TherapistNotification, TherapistRole, NotificationStatus
+    Therapist, TherapistRole, NotificationStatus
 )
 
 from pydantic import BaseModel
