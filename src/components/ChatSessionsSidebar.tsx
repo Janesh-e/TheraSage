@@ -184,7 +184,33 @@ const ChatSessionsSidebar = ({
 
   const handleNewSession = async () => {
     try {
-      onNewSession();
+      const userId = localStorage.getItem('user_id');
+    console.log('Creating new session for user:', userId); // Debug log
+    
+    const response = await fetch(`http://localhost:8000/sessions/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ 
+        user_id: userId,
+        title: null
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Server error:', errorData); // Debug log
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const newSession = await response.json();
+    console.log('New session created:', newSession); // Debug log
+    
+    // Add new session to the top of the list
+    setSessions((prev) => [newSession, ...prev]);
+    
+    // Select the new session
+    console.log('Selecting new session:', newSession.id); // Debug log
+    onSessionSelect(newSession.id);
     } catch (error) {
       console.error('Error creating new session:', error);
       setError('Failed to create new session');
