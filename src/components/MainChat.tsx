@@ -31,7 +31,8 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const [readAloud, setReadAloud] = useState(true);
   const [llmMode, setLlmMode] = useState<"online" | "offline">("online");
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>("1");
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -58,14 +59,66 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     speechSynthesis.speak(utterance);
   };
 
-  useEffect(() => {
+  // Initialize with welcome message when component mounts or session changes
+  const initializeWelcomeMessage = () => {
     const welcomeMessage = {
       type: "bot" as const,
       content: `Hi ${userName}! I'm ${botName}, your personal guide to emotional well-being. How are you feeling today? 💜`,
       timestamp: new Date(),
     };
-    setTimeout(() => setMessages([welcomeMessage]), 500);
-  }, [userName, botName]);
+    setMessages([welcomeMessage]);
+  };
+
+  // Create a new session automatically when needed
+  const createNewSession = async (): Promise<string | null> => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      const token = localStorage.getItem('access_token');
+      
+      const response = await fetch(`http://localhost:8000/sessions/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          user_id: userId,
+          title: null
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const newSession = await response.json();
+      return newSession.id;
+    } catch (error) {
+      console.error('Error creating session:', error);
+      return null;
+    }
+  };
+
+  // Initialize the component
+  useEffect(() => {
+    const initialize = async () => {
+      if (!currentSessionId) {
+        // Try to create a new session
+        const newSessionId = await createNewSession();
+        if (newSessionId) {
+          setCurrentSessionId(newSessionId);
+        }
+      }
+      
+      // Always show welcome message for new sessions or when no session exists
+      initializeWelcomeMessage();
+      setIsInitialized(true);
+    };
+
+    if (!isInitialized) {
+      initialize();
+    }
+  }, [userName, botName, isInitialized]);
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -123,6 +176,17 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const handleSendMessage = async () => {
     if (!input.trim() || isRecording) return;
 
+    // If no session exists, create one
+    if (!currentSessionId) {
+      const newSessionId = await createNewSession();
+      if (newSessionId) {
+        setCurrentSessionId(newSessionId);
+      } else {
+        console.error('Failed to create session');
+        return;
+      }
+    }
+
     const userMessage = {
       type: "user" as const,
       content: input,
@@ -156,6 +220,17 @@ const MainChat = ({ userResponses }: MainChatProps) => {
 
   const handleVoiceSend = async (audioBlob: Blob) => {
     if (audioBlob.size === 0) return;
+
+    // If no session exists, create one
+    if (!currentSessionId) {
+      const newSessionId = await createNewSession();
+      if (newSessionId) {
+        setCurrentSessionId(newSessionId);
+      } else {
+        console.error('Failed to create session');
+        return;
+      }
+    }
 
     const userMessage = {
       type: "user" as const,
@@ -215,38 +290,48 @@ const MainChat = ({ userResponses }: MainChatProps) => {
 
       if (response.ok) {
         const data = await response.json();
-        const formattedMessages = data.messages.map((msg: any) => ({
-          type: msg.sender_type === 'user' ? 'user' : 'bot',
-          content: msg.content,
-          timestamp: new Date(msg.created_at),
-        }));
-        setMessages(formattedMessages);
+        if (data.messages && data.messages.length > 0) {
+          const formattedMessages = data.messages.map((msg: any) => ({
+            type: msg.sender_type === 'user' ? 'user' : 'bot',
+            content: msg.content,
+            timestamp: new Date(msg.created_at),
+          }));
+          setMessages(formattedMessages);
+        } else {
+          // If no messages found, show welcome message
+          initializeWelcomeMessage();
+        }
       } else {
-        // If no messages found, show welcome message
-        setMessages([{
-          type: "bot" as const,
-          content: `Hi ${userName}! I'm ${botName}, your personal guide to emotional well-being. How are you feeling today? 💜`,
-          timestamp: new Date(),
-        }]);
+        // If session not found or error, show welcome message
+        initializeWelcomeMessage();
       }
     } catch (error) {
       console.error('Error loading session messages:', error);
-      setMessages([{
-        type: "bot" as const,
-        content: `Hi ${userName}! I'm ${botName}, your personal guide to emotional well-being. How are you feeling today? 💜`,
-        timestamp: new Date(),
-      }]);
+      initializeWelcomeMessage();
     }
   };
 
   const handleSessionSelect = (sessionId: string) => {
+    console.log('Selecting session:', sessionId);
     setCurrentSessionId(sessionId);
     loadSessionMessages(sessionId);
   };
 
-  const handleNewSession = () => {
-    setMessages([]);
-    setCurrentSessionId(null);
+  const handleNewSession = async () => {
+    console.log('Creating new session...');
+    
+    // Create a new session
+    const newSessionId = await createNewSession();
+    if (newSessionId) {
+      setCurrentSessionId(newSessionId);
+      // Show welcome message for new session
+      initializeWelcomeMessage();
+    } else {
+      console.error('Failed to create new session');
+      // Fallback: clear current session and show welcome
+      setCurrentSessionId(null);
+      initializeWelcomeMessage();
+    }
   };
 
   return (

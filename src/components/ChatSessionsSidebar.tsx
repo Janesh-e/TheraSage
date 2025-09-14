@@ -184,27 +184,7 @@ const ChatSessionsSidebar = ({
 
   const handleNewSession = async () => {
     try {
-      const userId = localStorage.getItem('user_id');
-      const response = await fetch(`http://localhost:8000/sessions/`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ 
-          user_id: userId,
-          title: null
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const newSession = await response.json();
-      
-      // Add new session to the top of the list
-      setSessions((prev) => [newSession, ...prev]);
-      
-      // Notify parent component about new session
-      onSessionSelect(newSession.id);
+      onNewSession();
     } catch (error) {
       console.error('Error creating new session:', error);
       setError('Failed to create new session');
