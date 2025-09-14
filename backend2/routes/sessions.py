@@ -16,11 +16,11 @@ router = APIRouter(
 @router.post("/", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_chat_session(
     session_data: ChatSessionCreate,
-    user_id: str = Query(...), # Accept user_id as query parameter or in body
     db: Session = Depends(get_db)
 ):
     """Create a new chat session for a user"""
     # Verify user exists
+    user_id = session_data.user_id
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(

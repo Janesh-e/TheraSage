@@ -26,6 +26,7 @@ class UserResponse(BaseModel):
 
 class ChatSessionCreate(BaseModel):
     title: Optional[str] = None
+    user_id: str
 
 class ChatSessionResponse(BaseModel):
     id: str
