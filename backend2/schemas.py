@@ -34,12 +34,27 @@ class ChatSessionResponse(BaseModel):
     current_risk_level: str
     is_active: bool
     created_at: datetime
+    updated_at: datetime
     last_message_at: datetime
     total_messages: int
+    conversation_summary: Optional[str] = None
+    risk_score: Optional[float] = None
     
     class Config:
         from_attributes = True
         orm_mode = True
+
+class SessionRenameRequest(BaseModel):
+    new_title: str
+    user_id: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "new_title": "My Updated Session Title",
+                "user_id": "52e5122b-fbff-4d60-b338-c4f417ce2872"
+            }
+        }
 
 class ChatMessageCreate(BaseModel):
     content: str

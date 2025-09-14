@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query, Body
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 from db import get_db
 from models import ChatSession, User, RiskLevel
-from schemas import ChatSessionCreate, ChatSessionResponse
+from schemas import ChatSessionCreate, ChatSessionResponse, SessionRenameRequest
 
 router = APIRouter(
     prefix="/sessions",
@@ -16,7 +16,7 @@ router = APIRouter(
 @router.post("/", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_chat_session(
     session_data: ChatSessionCreate,
-    user_id: str,
+    user_id: str = Query(...), # Accept user_id as query parameter or in body
     db: Session = Depends(get_db)
 ):
     """Create a new chat session for a user"""
@@ -27,14 +27,14 @@ async def create_chat_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
     # Get the next session number for this user
     last_session = db.query(ChatSession).filter(
         ChatSession.user_id == user_id
     ).order_by(ChatSession.session_number.desc()).first()
-    
+
     next_session_number = (last_session.session_number + 1) if last_session else 1
-    
+
     # Create new session
     new_session = ChatSession(
         user_id=user_id,
@@ -43,21 +43,21 @@ async def create_chat_session(
         current_risk_level=RiskLevel.LOW,
         total_messages=0
     )
-    
+
     db.add(new_session)
     db.commit()
     db.refresh(new_session)
 
     user.last_activity = datetime.utcnow()
     db.commit()
-    
+
     return new_session
 
 @router.put("/{session_id}/rename", response_model=ChatSessionResponse)
 async def rename_chat_session(
     session_id: str,
-    new_title: str,
-    user_id: str,
+    rename_data: SessionRenameRequest,
+    user_id: str = Body(..., embed=True),  # Extract user_id from request body
     db: Session = Depends(get_db)
 ):
     """Rename a chat session"""
@@ -72,10 +72,10 @@ async def rename_chat_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found or access denied"
         )
-    
-    # Update the title
+
+    # Update the title using the schema
     current_time = datetime.utcnow()
-    session.title = new_title
+    session.title = rename_data.new_title  # Access via schema
     session.updated_at = current_time
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -90,7 +90,7 @@ async def rename_chat_session(
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chat_session(
     session_id: str,
-    user_id: str,
+    user_id: str = Query(...), # Accept as query parameter
     db: Session = Depends(get_db)
 ):
     """Delete a chat session and all its messages"""
@@ -99,13 +99,13 @@ async def delete_chat_session(
         ChatSession.id == session_id,
         ChatSession.user_id == user_id
     ).first()
-    
+
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found or access denied"
         )
-    
+
     user = db.query(User).filter(User.id == user_id).first()
     if user:
         user.last_activity = datetime.utcnow()
@@ -113,16 +113,16 @@ async def delete_chat_session(
     # Delete the session (messages will be deleted due to cascade)
     db.delete(session)
     db.commit()
-    
+
     return None
 
 @router.get("/user/{user_id}", response_model=List[ChatSessionResponse])
 async def get_user_sessions(
     user_id: str,
     db: Session = Depends(get_db),
-    skip: int = 0,
-    limit: int = 50,
-    include_archived: bool = False
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    include_archived: bool = Query(False)
 ):
     """Get all chat sessions for a user"""
     # Verify user exists
@@ -132,27 +132,30 @@ async def get_user_sessions(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
+    # Update user activity
     user.last_activity = datetime.utcnow()
     db.commit()
 
+    # Build query
     query = db.query(ChatSession).filter(ChatSession.user_id == user_id)
 
     if not include_archived:
         query = query.filter(ChatSession.is_archived == False)
-    
+
     query = query.filter(ChatSession.is_active == True)
-    
+
+    # Order by last message time (most recent first)
     sessions = query.order_by(
         ChatSession.last_message_at.desc()
     ).offset(skip).limit(limit).all()
-    
+
     return sessions
 
 @router.get("/{session_id}", response_model=ChatSessionResponse)
 async def get_chat_session(
     session_id: str,
-    user_id: str,
+    user_id: str = Query(...),
     db: Session = Depends(get_db)
 ):
     """Get a specific chat session"""
@@ -160,25 +163,26 @@ async def get_chat_session(
         ChatSession.id == session_id,
         ChatSession.user_id == user_id
     ).first()
-    
+
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found or access denied"
         )
-    
+
+    # Update user activity
     user = db.query(User).filter(User.id == user_id).first()
     if user:
         user.last_activity = datetime.utcnow()
         db.commit()
-    
+
     return session
 
 @router.put("/{session_id}/risk")
 async def update_session_risk(
     session_id: str,
     risk_data: dict,
-    user_id: str,
+    user_id: str = Query(...),
     db: Session = Depends(get_db)
 ):
     """Update session risk assessment"""
@@ -186,27 +190,27 @@ async def update_session_risk(
         ChatSession.id == session_id,
         ChatSession.user_id == user_id
     ).first()
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or access denied")
-    
+
     # Update risk assessment
     current_time = datetime.utcnow()
-    
+
     if "risk_score" in risk_data:
         session.risk_score = float(risk_data["risk_score"])
-    
+
     if "risk_level" in risk_data:
         try:
             session.current_risk_level = RiskLevel(risk_data["risk_level"])
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid risk level")
-    
+
     session.last_risk_assessment = current_time
     session.updated_at = current_time
-    
+
     db.commit()
-    
+
     return {
         "message": "Risk assessment updated",
         "session_id": str(session.id),
@@ -215,11 +219,10 @@ async def update_session_risk(
         "last_assessment": session.last_risk_assessment
     }
 
-
 @router.put("/{session_id}/archive")
 async def archive_session(
     session_id: str,
-    user_id: str,
+    user_id: str = Query(...),
     db: Session = Depends(get_db)
 ):
     """Archive a session"""
@@ -227,17 +230,23 @@ async def archive_session(
         ChatSession.id == session_id,
         ChatSession.user_id == user_id
     ).first()
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or access denied")
-    
+
     current_time = datetime.utcnow()
     session.is_archived = True
     session.updated_at = current_time
-    
+
     # Update user activity
     user = db.query(User).filter(User.id == user_id).first()
     if user:
         user.last_activity = current_time
-    
+
     db.commit()
+
+    return {
+        "message": "Session archived successfully",
+        "session_id": str(session.id),
+        "archived_at": current_time
+    }

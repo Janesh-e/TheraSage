@@ -45,6 +45,8 @@ const ChatSessionsSidebar = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
+  const [error, setError] = useState<string | null>(null);
+
   // Load sessions when component mounts
   useEffect(() => {
     loadSessions();
@@ -58,28 +60,35 @@ const ChatSessionsSidebar = ({
     };
   };
 
+  const getUserId = () => {
+    return localStorage.getItem('user_id');
+  };
+
   const loadSessions = async () => {
     try {
-      const userId = localStorage.getItem('user_id');
-      if (!userId) return;
+      setIsLoading(true);
+      setError(null);
 
-      const response = await fetch(`http://localhost:8000/sessions/user/${userId}`, {
+      const userId = getUserId();
+      if (!userId) {
+        setError('User ID not found. Please log in again.');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:8000/sessions/user/${userId}?limit=50&skip=0&include_archived=false`, {
+        method: 'GET',
         headers: getAuthHeaders(),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const formattedSessions = data.map((session: any) => ({
-          id: session.id,
-          title: session.title,
-          lastMessage: session.last_message || "No messages yet",
-          timestamp: new Date(session.updated_at),
-          messageCount: session.message_count || 0,
-        }));
-        setSessions(formattedSessions);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const data = await response.json();
+      setSessions(data);
     } catch (error) {
       console.error('Error loading sessions:', error);
+      setError('Failed to load chat sessions');
     } finally {
       setIsLoading(false);
     }
@@ -108,26 +117,32 @@ const ChatSessionsSidebar = ({
     }
 
     try {
-      const userId = localStorage.getItem('user_id');
-      const response = await fetch(`http://localhost:8000/sessions/${sessionId}/rename`, {
+      const userId = getUserId();
+      if (!userId) return;
+      const response = await fetch(`http://localhost:8000/sessions/${sessionId}/rename?user_id=${userId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ new_title: newTitle, user_id: userId }),
       });
 
-      if (response.ok) {
-        setSessions((prev) =>
-          prev.map((session) =>
-            session.id === sessionId
-              ? { ...session, title: newTitle }
-              : session
-          )
-        );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const updatedSession = await response.json();
+      
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === sessionId
+            ? { ...session, title: updatedSession.title }
+            : session
+        )
+      );
     } catch (error) {
       console.error('Error renaming session:', error);
+      setError('Failed to rename session');
     }
-    
+
     setEditingId(null);
     setEditTitle("");
   };
@@ -138,22 +153,32 @@ const ChatSessionsSidebar = ({
   };
 
   const handleDelete = async (sessionId: string) => {
+    if (!window.confirm('Are you sure you want to delete this chat session? This action cannot be undone.')) {
+      return;
+    }
+
     try {
-      const userId = localStorage.getItem('user_id');
-      const response = await fetch(`http://localhost:8000/sessions/${sessionId}`, {
+      const userId = getUserId();
+      if (!userId) return;
+
+      const response = await fetch(`http://localhost:8000/sessions/${sessionId}?user_id=${userId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ user_id: userId }),
       });
 
-      if (response.ok) {
-        setSessions((prev) => prev.filter((session) => session.id !== sessionId));
-        if (currentSessionId === sessionId) {
-          onNewSession();
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+      
+      // If we deleted the current session, trigger new session creation
+      if (currentSessionId === sessionId) {
+        onNewSession();
       }
     } catch (error) {
       console.error('Error deleting session:', error);
+      setError('Failed to delete session');
     }
   };
 
@@ -164,28 +189,39 @@ const ChatSessionsSidebar = ({
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ 
-          title: "New conversation",
+          title: null,
           user_id: userId
         }),
       });
 
-      if (response.ok) {
-        const newSession = await response.json();
-        const formattedSession: ChatSession = {
-          id: newSession.id,
-          title: newSession.title,
-          lastMessage: "",
-          timestamp: new Date(newSession.created_at),
-          messageCount: 0,
-        };
-        
-        setSessions((prev) => [formattedSession, ...prev]);
-        onNewSession();
-        onSessionSelect(newSession.id);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const newSession = await response.json();
+      
+      // Add new session to the top of the list
+      setSessions((prev) => [newSession, ...prev]);
+      
+      // Notify parent component about new session
+      onSessionSelect(newSession.id);
+      onNewSession();
     } catch (error) {
       console.error('Error creating new session:', error);
+      setError('Failed to create new session');
     }
+  };
+
+  const handleSessionSelect = (sessionId: string) => {
+    // Validate UUID format before selecting
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(sessionId)) {
+      console.error('Invalid session ID format:', sessionId);
+      setError('Invalid session ID');
+      return;
+    }
+    
+    onSessionSelect(sessionId);
   };
 
   return (
