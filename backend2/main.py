@@ -31,7 +31,7 @@ from models import (
 )
 
 # Import routes
-from routes import sessions, messages, auth, crisis, therapist_dashboard, therapist_session, community
+from routes import sessions, messages, auth, crisis, therapist_dashboard, therapist_session, community, user_matching, peer_messaging
 
 # Import utility functions
 from stt_utils import transcribe_audio
@@ -90,6 +90,8 @@ app.include_router(crisis.router, prefix="/api/v1")
 app.include_router(therapist_session.router, prefix="/api/v1")
 app.include_router(therapist_dashboard.router, prefix="/api/v1")
 app.include_router(community.router, prefix="/api/v1")
+app.include_router(user_matching.router, prefix="/api/v1")
+app.include_router(peer_messaging.router, prefix="/api/v1")
 app.include_router(router, prefix="/api/v1")
 
 # ===== SPEECH-TO-TEXT =====
@@ -346,6 +348,70 @@ async def get_college_crisis_overview(
             "critical_alerts": critical_crises
         },
         "system_health": "good" if critical_crises == 0 and availability_stats["active_therapists"] > 0 else "attention_needed"
+    }
+
+@app.get("/api/v1/user-matching/overview/{user_id}")
+async def get_user_matching_overview(
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get comprehensive matching overview for a user
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get basic matching eligibility
+    session_count = db.query(ChatSession).filter(
+        and_(
+            ChatSession.user_id == user_id,
+            ChatSession.total_messages >= 3
+        )
+    ).count()
+    
+    eligible_for_matching = session_count > 0
+    
+    # Get existing matches count
+    matches_count = db.query(UserMatch).filter(UserMatch.user_id == user_id).count()
+    
+    # Get connection statistics
+    connected_count = db.query(UserMatch).filter(
+        and_(
+            UserMatch.user_id == user_id,
+            UserMatch.connection_accepted == True
+        )
+    ).count()
+    
+    pending_count = db.query(UserMatch).filter(
+        and_(
+            UserMatch.user_id == user_id,
+            UserMatch.connection_initiated == True,
+            UserMatch.connection_accepted.is_(None)
+        )
+    ).count()
+    
+    return {
+        "user_id": user_id,
+        "matching_eligibility": {
+            "eligible": eligible_for_matching,
+            "conversation_sessions": session_count,
+            "requirement": "At least one conversation with 3+ messages"
+        },
+        "matching_stats": {
+            "total_matches": matches_count,
+            "connected": connected_count,
+            "pending_connections": pending_count
+        },
+        "next_steps": {
+            "can_generate_matches": eligible_for_matching and matches_count < 10,
+            "can_message_peers": connected_count > 0,
+            "suggestions": [
+                "Generate matches to find compatible peers" if eligible_for_matching else "Have more conversations to unlock matching",
+                "Connect with your matches to start peer support",
+                "Share your experiences in community posts"
+            ]
+        }
     }
 
 if __name__ == "__main__":
