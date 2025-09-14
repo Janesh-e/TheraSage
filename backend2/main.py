@@ -83,9 +83,9 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(sessions.router, prefix="/api/v1")
-app.include_router(messages.router, prefix="/api/v1")
-app.include_router(auth.router, prefix="/api/v1")
+app.include_router(sessions.router)
+app.include_router(messages.router)
+app.include_router(auth.router)
 app.include_router(crisis.router, prefix="/api/v1")
 app.include_router(therapist_session.router, prefix="/api/v1")
 app.include_router(therapist_dashboard.router, prefix="/api/v1")

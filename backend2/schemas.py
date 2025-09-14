@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timedelta
+from uuid import UUID
 
 # Pydantic models
 class UserCreate(BaseModel):
@@ -25,11 +26,12 @@ class UserResponse(BaseModel):
         orm_mode = True
 
 class ChatSessionCreate(BaseModel):
-    title: Optional[str] = None
+    #title: Optional[str] = None
+    title: Union[str, None] = None
     user_id: str
 
 class ChatSessionResponse(BaseModel):
-    id: str
+    id: UUID
     title: Optional[str]
     session_number: int
     current_risk_level: str
@@ -47,7 +49,7 @@ class ChatSessionResponse(BaseModel):
 
 class SessionRenameRequest(BaseModel):
     new_title: str
-    user_id: str
+    user_id: UUID
 
     class Config:
         schema_extra = {

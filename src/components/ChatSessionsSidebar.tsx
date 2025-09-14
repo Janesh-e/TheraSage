@@ -205,7 +205,6 @@ const ChatSessionsSidebar = ({
       
       // Notify parent component about new session
       onSessionSelect(newSession.id);
-      onNewSession();
     } catch (error) {
       console.error('Error creating new session:', error);
       setError('Failed to create new session');
