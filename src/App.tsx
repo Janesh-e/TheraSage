@@ -19,6 +19,7 @@ import Community from "./pages/Community";
 import ResourceHub from "./pages/ResourceHub";
 import TherapistDashboard from "./pages/TherapistDashboard";
 import TherapistCrisis from "./pages/TherapistCrisis";
+import TherapistSessions from "./pages/TherapistSessions";
 
 const queryClient = new QueryClient();
 
@@ -131,6 +132,17 @@ const App = () => (
                     description="Review and respond to crisis alerts from students"
                   >
                     <TherapistCrisis />
+                  </TherapistLayout>
+                }
+              />
+              <Route
+                path="/therapist/sessions"
+                element={
+                  <TherapistLayout
+                    title="Session Management"
+                    description="Manage and schedule therapy sessions"
+                  >
+                    <TherapistSessions />
                   </TherapistLayout>
                 }
               />
