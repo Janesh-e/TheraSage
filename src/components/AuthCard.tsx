@@ -16,6 +16,8 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [collegeId, setCollegeId] = useState("");
+  const [collegeName, setCollegeName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -25,19 +27,47 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
 
     try {
       if (isSignUp) {
+        // Validation for signup
+        if (!name.trim()) {
+          toast({
+            title: "Validation Error",
+            description: "Please enter your name.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (!collegeId.trim()) {
+          toast({
+            title: "Validation Error",
+            description: "Please enter your College ID.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (!collegeName.trim()) {
+          toast({
+            title: "Validation Error",
+            description: "Please enter your College Name.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         // Signup endpoint
         const signupPayload = {
-          name,
-          email,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
           password,
-          college_id: "default-college",
-          college_name: "Default College"
+          college_id: collegeId.trim(),
+          college_name: collegeName.trim(),
         };
 
-        const response = await fetch('http://localhost:8000/auth/signup', {
-          method: 'POST',
+        const response = await fetch("http://localhost:8000/auth/signup", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(signupPayload),
         });
@@ -49,28 +79,52 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
             title: "Success!",
             description: "Account created successfully!",
           });
-          
+
           // Store user info
-          localStorage.setItem('user_id', data.id);
-          localStorage.setItem('user_name', data.name);
-          localStorage.setItem('user_email', data.email);
-          
+          localStorage.setItem("user_id", data.id);
+          localStorage.setItem("user_name", data.name);
+          localStorage.setItem("user_email", data.email);
+          localStorage.setItem(
+            "anonymous_username",
+            data.anonymous_username || ""
+          );
+          localStorage.setItem("college_name", data.college_name);
+
           onComplete(false); // New user
         } else {
           toast({
-            title: "Error",
+            title: "Signup Error",
             description: data.detail || "Signup failed. Please try again.",
             variant: "destructive",
           });
         }
       } else {
+        // Login validation
+        if (!email.trim()) {
+          toast({
+            title: "Validation Error",
+            description: "Please enter your email address.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (!password) {
+          toast({
+            title: "Validation Error",
+            description: "Please enter your password.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         // Login endpoint - using form data as expected by OAuth2PasswordRequestForm
         const formData = new FormData();
-        formData.append('username', email);
-        formData.append('password', password);
+        formData.append("username", email.trim().toLowerCase());
+        formData.append("password", password);
 
-        const response = await fetch('http://localhost:8000/auth/login', {
-          method: 'POST',
+        const response = await fetch("http://localhost:8000/auth/login", {
+          method: "POST",
           body: formData,
         });
 
@@ -81,28 +135,34 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
             title: "Success!",
             description: "Login successful!",
           });
-          
+
           // Store authentication data
-          localStorage.setItem('access_token', data.access_token);
-          localStorage.setItem('user_id', data.user.id);
-          localStorage.setItem('user_name', data.user.name);
-          localStorage.setItem('user_email', data.user.email);
-          localStorage.setItem('anonymous_username', data.user.anonymous_username);
-          
+          localStorage.setItem("access_token", data.access_token);
+          localStorage.setItem("user_id", data.user.id);
+          localStorage.setItem("user_name", data.user.name);
+          localStorage.setItem("user_email", data.user.email);
+          localStorage.setItem(
+            "anonymous_username",
+            data.user.anonymous_username || ""
+          );
+          localStorage.setItem("college_name", data.user.college_name || "");
+
           onComplete(true); // Returning user
         } else {
           toast({
-            title: "Error",
-            description: data.detail || "Login failed. Please try again.",
+            title: "Login Error",
+            description:
+              data.detail || "Invalid email or password. Please try again.",
             variant: "destructive",
           });
         }
       }
     } catch (error) {
-      console.error('Auth error:', error);
+      console.error("Auth error:", error);
       toast({
         title: "Network Error",
-        description: "Unable to connect to the server. Please check your connection.",
+        description:
+          "Unable to connect to the server. Please check your connection and try again.",
         variant: "destructive",
       });
     } finally {
@@ -116,6 +176,17 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
       title: "Google Login",
       description: "Google authentication is not yet implemented.",
     });
+  };
+
+  // Reset form when switching between login/signup
+  const handleToggleMode = () => {
+    setIsSignUp(!isSignUp);
+    // Clear form fields when switching modes
+    setEmail("");
+    setPassword("");
+    setName("");
+    setCollegeId("");
+    setCollegeName("");
   };
 
   return (
@@ -178,40 +249,67 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
             {/* Email/Password Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignUp && (
-                <div>
-                  <Input
-                    type="text"
-                    placeholder="Your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full py-3 border-border rounded-xl focus:border-primary focus:ring-primary/20"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
+                <>
+                  <div>
+                    <Input
+                      type="text"
+                      placeholder="Your full name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full py-3 border-border rounded-xl focus:border-primary focus:ring-primary/20"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  <div>
+                    <Input
+                      type="text"
+                      placeholder="College ID (e.g., STU12345)"
+                      value={collegeId}
+                      onChange={(e) => setCollegeId(e.target.value)}
+                      className="w-full py-3 border-border rounded-xl focus:border-primary focus:ring-primary/20"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  <div>
+                    <Input
+                      type="text"
+                      placeholder="College/University name"
+                      value={collegeName}
+                      onChange={(e) => setCollegeName(e.target.value)}
+                      className="w-full py-3 border-border rounded-xl focus:border-primary focus:ring-primary/20"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                </>
               )}
-              
+
               <div>
                 <Input
                   type="email"
                   placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full py-3 border-gray-200 rounded-xl focus:border-purple-300 focus:ring-purple-200"
+                  className="w-full py-3 border-border rounded-xl focus:border-primary focus:ring-primary/20"
                   required
                   disabled={isLoading}
                 />
               </div>
-              
+
               <div>
                 <Input
                   type="password"
                   placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full py-3 border-gray-200 rounded-xl focus:border-purple-300 focus:ring-purple-200"
+                  className="w-full py-3 border-border rounded-xl focus:border-primary focus:ring-primary/20"
                   required
                   disabled={isLoading}
+                  minLength={6}
                 />
               </div>
 
@@ -235,20 +333,20 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
 
             <div className="text-center">
               <button
-                onClick={() => setIsSignUp(!isSignUp)}
+                onClick={handleToggleMode}
                 className="text-primary hover:text-primary/80 text-sm transition-colors duration-200"
                 disabled={isLoading}
               >
-                {isSignUp 
-                  ? "Already have an account? Sign in" 
+                {isSignUp
+                  ? "Already have an account? Sign in"
                   : "Need an account? Sign up"}
               </button>
             </div>
 
             <div className="bg-accent/30 rounded-xl p-4 text-center">
               <p className="text-xs text-muted-foreground">
-                🔒 Your information is encrypted and completely private. 
-                We'll never share your personal details.
+                🔒 Your information is encrypted and completely private. We'll
+                never share your personal details.
               </p>
             </div>
           </CardContent>
