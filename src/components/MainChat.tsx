@@ -4,6 +4,7 @@ import { Send, ArrowDown } from "lucide-react";
 import ChatBubble from "@/components/ChatBubble";
 import TypingIndicator from "@/components/TypingIndicator";
 import AppSidebar from "@/components/AppSidebar";
+import ChatSessionsSidebar from "@/components/ChatSessionsSidebar";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import ReadAloudToggle from "@/components/ReadAloudToggle";
 import LLMToggle from "@/components/LLMToggle";
@@ -30,6 +31,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const [readAloud, setReadAloud] = useState(true);
   const [llmMode, setLlmMode] = useState<"online" | "offline">("online");
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>("1");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -191,10 +193,31 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     }
   };
 
+  const handleSessionSelect = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+    // In a real app, you would load messages for this session
+    // For now, we'll just clear the current messages
+    setMessages([{
+      type: "bot" as const,
+      content: `Hi ${userName}! I'm ${botName}, your personal guide to emotional well-being. How are you feeling today? 💜`,
+      timestamp: new Date(),
+    }]);
+  };
+
+  const handleNewSession = () => {
+    setMessages([]);
+    setCurrentSessionId(null);
+  };
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <AppSidebar />
+        <ChatSessionsSidebar 
+          currentSessionId={currentSessionId}
+          onSessionSelect={handleSessionSelect}
+          onNewSession={handleNewSession}
+        />
         <div className="flex-1 flex flex-col min-w-0">
           <header className="flex-shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 py-[19px] shadow-sm">
             <div className="flex items-center justify-between w-full">
@@ -210,7 +233,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                   <div className="flex items-center space-x-2">
                     <div
                       className={`w-2.5 h-2.5 rounded-full shadow-sm ${
-                        llmMode === "online" ? "bg-green-500" : "bg-primary"
+                        llmMode === "online" ? "bg-green-500" : "bg-red-500"
                       }`}
                     ></div>
                     <span className="text-sm text-muted-foreground font-medium">
@@ -219,14 +242,13 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-4">
                 <LLMToggle mode={llmMode} onModeChange={setLlmMode} />
                 <ReadAloudToggle enabled={readAloud} onToggle={setReadAloud} />
               </div>
             </div>
           </header>
-
-          <div
+          <main
             className="flex-1 overflow-y-auto"
             ref={chatContainerRef}
             onScroll={handleScroll}
@@ -247,8 +269,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
               {isTyping && <TypingIndicator />}
               <div ref={messagesEndRef} />
             </div>
-          </div>
-
+          </main>
           <footer className="flex-shrink-0 border-t border-border bg-background/80 backdrop-blur-sm px-6 py-4 shadow-lg">
             <div className="max-w-4xl mx-auto">
               <div className="flex items-end space-x-3">
@@ -288,7 +309,6 @@ const MainChat = ({ userResponses }: MainChatProps) => {
               </div>
             </div>
           </footer>
-
           <AnimatePresence>
             {showScrollToBottom && (
               <motion.div

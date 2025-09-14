@@ -131,9 +131,7 @@ const LLMToggle: React.FC<LLMToggleProps> = ({
     >
       <span
         className={`text-xs font-medium px-2 py-1 rounded-md transition-colors ${
-          mode === "offline"
-            ? "bg-orange-500 text-white"
-            : "text-muted-foreground"
+          mode === "offline" ? "bg-red-500 text-white" : "text-muted-foreground"
         }`}
       >
         Offline
@@ -146,7 +144,7 @@ const LLMToggle: React.FC<LLMToggleProps> = ({
         className={`${
           mode === "online"
             ? "data-[state=checked]:bg-green-500"
-            : "data-[state=unchecked]:bg-orange-500"
+            : "data-[state=unchecked]:bg-red-500"
         }`}
         disabled={isLoading}
       />

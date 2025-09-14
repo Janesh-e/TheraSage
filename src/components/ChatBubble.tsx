@@ -38,10 +38,12 @@ const ChatBubble = ({ message, isBot, timestamp }: ChatBubbleProps) => {
     >
       <div
         className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-sm ${
-          isBot ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+          isBot
+            ? "bg-primary text-primary-foreground"
+            : "bg-secondary text-secondary-foreground"
         }`}
       >
-        {isBot ? "🤖" : "👤"}
+        {isBot ? "❤️" : "👤"}
       </div>
       <div
         className={`relative max-w-md lg:max-w-lg px-4 py-3 rounded-xl shadow-sm ${

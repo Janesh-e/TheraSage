@@ -1,4 +1,10 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Clock, Eye, Calendar } from "lucide-react";
@@ -14,7 +20,7 @@ const crisisAlerts = [
     college: "University College London",
   },
   {
-    id: "CA-002", 
+    id: "CA-002",
     anonymousId: "Student-B83G",
     riskLevel: "high",
     crisisType: "Severe Depression",
@@ -33,16 +39,16 @@ const crisisAlerts = [
   },
 ];
 
-const getRiskColor = (risk: string) => {
-  switch (risk) {
+const getRiskColor = (riskLevel: string) => {
+  switch (riskLevel) {
     case "critical":
       return "bg-destructive text-destructive-foreground";
     case "high":
-      return "bg-orange-500 text-white";
+      return "bg-amber-500 text-white dark:bg-amber-600";
     case "medium":
-      return "bg-yellow-500 text-white";
+      return "bg-primary text-primary-foreground";
     case "low":
-      return "bg-green-500 text-white";
+      return "bg-emerald-500 text-white dark:bg-emerald-600";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -80,7 +86,7 @@ export function CrisisAlertsWidget() {
                 {alert.detectedAt}
               </div>
             </div>
-            
+
             <div>
               <p className="font-medium text-sm">{alert.crisisType}</p>
               <p className="text-xs text-muted-foreground">{alert.college}</p>
@@ -88,7 +94,7 @@ export function CrisisAlertsWidget() {
                 Confidence: {alert.confidenceScore}%
               </p>
             </div>
-            
+
             <div className="flex gap-2">
               <Button size="sm" variant="destructive" className="flex-1">
                 <Eye className="h-3 w-3 mr-1" />

@@ -20,9 +20,89 @@ const VoiceRecorder = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const checkMicrophonePermissions = async (): Promise<boolean> => {
+    try {
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("getUserMedia is not supported");
+        return false;
+      }
+
+      // Try to enumerate devices to check if microphone exists
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioDevices = devices.filter(
+          (device) => device.kind === "audioinput"
+        );
+        console.log("Available audio input devices:", audioDevices.length);
+
+        if (audioDevices.length === 0) {
+          alert(
+            "No microphone devices found. Please connect a microphone and try again."
+          );
+          return false;
+        }
+      } catch (enumError) {
+        console.warn("Could not enumerate devices:", enumError);
+        // Continue anyway
+      }
+
+      // Check permission status if supported
+      try {
+        const permissionStatus = await navigator.permissions.query({
+          name: "microphone" as PermissionName,
+        });
+        console.log("Microphone permission status:", permissionStatus.state);
+
+        if (permissionStatus.state === "denied") {
+          alert(
+            "Microphone permission is denied. Please enable microphone access in your browser settings and refresh the page."
+          );
+          return false;
+        }
+      } catch (permError) {
+        console.warn("Could not check permission status:", permError);
+        // Continue anyway, as some browsers don't support permissions API
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error checking microphone permissions:", error);
+      return false;
+    }
+  };
+
   const startRecording = async () => {
+    // Check permissions first
+    const hasPermissions = await checkMicrophonePermissions();
+    if (!hasPermissions) {
+      return;
+    }
+
     try {
       console.log("Starting voice recording...");
+
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("getUserMedia is not supported in this browser");
+      }
+
+      // Check microphone permission first
+      try {
+        const permissionStatus = await navigator.permissions.query({
+          name: "microphone" as PermissionName,
+        });
+        console.log("Microphone permission status:", permissionStatus.state);
+
+        if (permissionStatus.state === "denied") {
+          throw new Error(
+            "Microphone permission denied. Please enable microphone access in your browser settings."
+          );
+        }
+      } catch (permError) {
+        console.warn("Could not check permission status:", permError);
+        // Continue anyway, as some browsers don't support permissions API
+      }
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -30,11 +110,28 @@ const VoiceRecorder = ({
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
         },
       });
 
       streamRef.current = stream;
       console.log("Got media stream:", stream);
+
+      // Check if stream has audio tracks
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        throw new Error("No audio tracks available in the media stream");
+      }
+
+      console.log(
+        "Audio tracks:",
+        audioTracks.map((track) => ({
+          label: track.label,
+          kind: track.kind,
+          enabled: track.enabled,
+          muted: track.muted,
+        }))
+      );
 
       // Use a more compatible MIME type
       let mimeType = "audio/webm";
@@ -117,9 +214,101 @@ const VoiceRecorder = ({
       }, 1000);
     } catch (error) {
       console.error("Error accessing microphone:", error);
-      alert(
-        "Unable to access microphone. Please check your permissions and try again."
-      );
+
+      // Provide specific error messages based on error type
+      let errorMessage = "Unable to access microphone. ";
+
+      if (error instanceof Error) {
+        if (
+          error.name === "NotAllowedError" ||
+          error.name === "PermissionDeniedError"
+        ) {
+          errorMessage +=
+            "Permission denied. Please click on the microphone icon in your browser's address bar and allow microphone access, then try again.";
+        } else if (
+          error.name === "NotFoundError" ||
+          error.name === "DevicesNotFoundError"
+        ) {
+          errorMessage +=
+            "No microphone found. Please check that a microphone is connected and try again.";
+        } else if (
+          error.name === "NotReadableError" ||
+          error.name === "TrackStartError"
+        ) {
+          errorMessage +=
+            "Microphone is already in use by another application. Please close other applications using the microphone and try again.";
+        } else if (
+          error.name === "OverconstrainedError" ||
+          error.name === "ConstraintNotSatisfiedError"
+        ) {
+          errorMessage +=
+            "Microphone settings not supported. Trying with default settings...";
+
+          // Try with simpler constraints
+          try {
+            const simpleStream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+            });
+            streamRef.current = simpleStream;
+            console.log("Got simple media stream:", simpleStream);
+
+            const mediaRecorder = new MediaRecorder(simpleStream);
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                audioChunksRef.current.push(event.data);
+              }
+            };
+
+            mediaRecorder.onstop = async () => {
+              const audioBlob = new Blob(audioChunksRef.current, {
+                type: "audio/webm",
+              });
+              try {
+                const wavBlob = await convertToWav(audioBlob);
+                onTranscriptionBlob(wavBlob);
+              } catch (convertError) {
+                console.error("Error converting to WAV:", convertError);
+                onTranscriptionBlob(audioBlob);
+              }
+
+              if (streamRef.current) {
+                streamRef.current.getTracks().forEach((track) => track.stop());
+                streamRef.current = null;
+              }
+            };
+
+            mediaRecorder.onerror = (event) => {
+              console.error("MediaRecorder error:", event);
+            };
+
+            mediaRecorderRef.current = mediaRecorder;
+            mediaRecorder.start(1000);
+            console.log("MediaRecorder started with simple constraints");
+            setIsRecording(true);
+            setRecordingTime(0);
+
+            timerRef.current = setInterval(() => {
+              setRecordingTime((prev) => prev + 1);
+            }, 1000);
+
+            return; // Exit successfully
+          } catch (fallbackError) {
+            console.error("Fallback recording failed:", fallbackError);
+            errorMessage += " Fallback also failed.";
+          }
+        } else if (error.name === "NotSupportedError") {
+          errorMessage +=
+            "Your browser doesn't support audio recording. Please use a modern browser like Chrome, Firefox, or Edge.";
+        } else {
+          errorMessage += `Error: ${error.message}`;
+        }
+      } else {
+        errorMessage += "An unknown error occurred. Please try again.";
+      }
+
+      alert(errorMessage);
     }
   };
 
@@ -247,7 +436,8 @@ const VoiceRecorder = ({
           disabled={disabled}
           variant="ghost"
           size="sm"
-          className="text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+          className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-950/30 transition-all duration-200 rounded-md p-2"
+          title="Start voice recording"
         >
           <Mic size={18} />
         </Button>
