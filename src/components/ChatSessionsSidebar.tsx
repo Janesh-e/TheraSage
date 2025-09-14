@@ -185,10 +185,11 @@ const ChatSessionsSidebar = ({
   const handleNewSession = async () => {
     try {
       const userId = localStorage.getItem('user_id');
-      const response = await fetch('http://localhost:8000/sessions/?user_id=${userId}', {
+      const response = await fetch(`http://localhost:8000/sessions/`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ 
+          user_id: userId,
           title: null
         }),
       });
