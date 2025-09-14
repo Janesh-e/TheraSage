@@ -22,16 +22,19 @@ const Index = () => {
   >("landing");
   const [isSignedUp, setIsSignedUp] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin"); // Add this state
 
   const handleStartChat = () => {
     setCurrentView("onboarding");
   };
 
   const handleSignUp = () => {
+    setAuthMode("signup"); // Set to signup mode
     setCurrentView("auth");
   };
 
   const handleLogin = () => {
+    setAuthMode("signin"); // Set to signin mode
     setCurrentView("auth");
   };
 
@@ -52,6 +55,7 @@ const Index = () => {
   if (currentView === "auth") {
     return (
       <AuthCard
+        initialMode={authMode} // Use the authMode state instead of hardcoded "signin"
         onComplete={handleAuthComplete}
         onBack={() => setCurrentView("landing")}
         onSkipToChat={handleSkipToChat}

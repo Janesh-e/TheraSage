@@ -9,10 +9,16 @@ interface AuthCardProps {
   onComplete: (isReturningUser: boolean) => void;
   onBack: () => void;
   onSkipToChat?: () => void;
+  initialMode?: "signin" | "signup"; // Add this prop
 }
 
-const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
-  const [isSignUp, setIsSignUp] = useState(true);
+const AuthCard = ({
+  onComplete,
+  onBack,
+  onSkipToChat,
+  initialMode = "signin",
+}: AuthCardProps) => {
+  const [isSignUp, setIsSignUp] = useState(initialMode === "signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
