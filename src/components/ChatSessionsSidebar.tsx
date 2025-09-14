@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,40 +39,51 @@ const ChatSessionsSidebar = ({
   onSessionSelect,
   onNewSession,
 }: ChatSessionsSidebarProps) => {
-  // Mock data for sessions
-  const [sessions, setSessions] = useState<ChatSession[]>([
-    {
-      id: "1",
-      title: "Feeling anxious about exams",
-      lastMessage: "Thank you for listening to me today...",
-      timestamp: new Date(2024, 8, 14, 15, 30),
-      messageCount: 12,
-    },
-    {
-      id: "2",
-      title: "Daily check-in",
-      lastMessage: "I'm feeling much better today...",
-      timestamp: new Date(2024, 8, 13, 10, 15),
-      messageCount: 8,
-    },
-    {
-      id: "3",
-      title: "Sleep issues discussion",
-      lastMessage: "The breathing exercises helped...",
-      timestamp: new Date(2024, 8, 12, 22, 45),
-      messageCount: 15,
-    },
-    {
-      id: "4",
-      title: "Relationship concerns",
-      lastMessage: "I think I understand now...",
-      timestamp: new Date(2024, 8, 11, 14, 20),
-      messageCount: 20,
-    },
-  ]);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+
+  // Load sessions when component mounts
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  };
+
+  const loadSessions = async () => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      if (!userId) return;
+
+      const response = await fetch(`http://localhost:8000/sessions/user/${userId}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const formattedSessions = data.map((session: any) => ({
+          id: session.id,
+          title: session.title,
+          lastMessage: session.last_message || "No messages yet",
+          timestamp: new Date(session.updated_at),
+          messageCount: session.message_count || 0,
+        }));
+        setSessions(formattedSessions);
+      }
+    } catch (error) {
+      console.error('Error loading sessions:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const formatTimestamp = (date: Date) => {
     const now = new Date();
@@ -89,14 +100,34 @@ const ChatSessionsSidebar = ({
     setEditTitle(currentTitle);
   };
 
-  const saveRename = (sessionId: string) => {
-    setSessions((prev) =>
-      prev.map((session) =>
-        session.id === sessionId
-          ? { ...session, title: editTitle.trim() || session.title }
-          : session
-      )
-    );
+  const saveRename = async (sessionId: string) => {
+    const newTitle = editTitle.trim();
+    if (!newTitle) {
+      cancelRename();
+      return;
+    }
+
+    try {
+      const userId = localStorage.getItem('user_id');
+      const response = await fetch(`http://localhost:8000/sessions/${sessionId}/rename`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ new_title: newTitle, user_id: userId }),
+      });
+
+      if (response.ok) {
+        setSessions((prev) =>
+          prev.map((session) =>
+            session.id === sessionId
+              ? { ...session, title: newTitle }
+              : session
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error renaming session:', error);
+    }
+    
     setEditingId(null);
     setEditTitle("");
   };
@@ -106,25 +137,55 @@ const ChatSessionsSidebar = ({
     setEditTitle("");
   };
 
-  const handleDelete = (sessionId: string) => {
-    setSessions((prev) => prev.filter((session) => session.id !== sessionId));
-    if (currentSessionId === sessionId) {
-      // If deleting current session, create a new one
-      onNewSession();
+  const handleDelete = async (sessionId: string) => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      const response = await fetch(`http://localhost:8000/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ user_id: userId }),
+      });
+
+      if (response.ok) {
+        setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+        if (currentSessionId === sessionId) {
+          onNewSession();
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting session:', error);
     }
   };
 
-  const handleNewSession = () => {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: "New conversation",
-      lastMessage: "",
-      timestamp: new Date(),
-      messageCount: 0,
-    };
-    setSessions((prev) => [newSession, ...prev]);
-    onNewSession();
-    onSessionSelect(newSession.id);
+  const handleNewSession = async () => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      const response = await fetch('http://localhost:8000/sessions/', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ 
+          title: "New conversation",
+          user_id: userId
+        }),
+      });
+
+      if (response.ok) {
+        const newSession = await response.json();
+        const formattedSession: ChatSession = {
+          id: newSession.id,
+          title: newSession.title,
+          lastMessage: "",
+          timestamp: new Date(newSession.created_at),
+          messageCount: 0,
+        };
+        
+        setSessions((prev) => [formattedSession, ...prev]);
+        onNewSession();
+        onSessionSelect(newSession.id);
+      }
+    } catch (error) {
+      console.error('Error creating new session:', error);
+    }
   };
 
   return (

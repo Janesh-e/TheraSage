@@ -87,16 +87,30 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const sendToBackend = async (text?: string, audioFile?: Blob) => {
     setIsTyping(true);
     const formData = new FormData();
-    formData.append("user_id", "user123");
-    formData.append("mode", llmMode);
-    if (text) formData.append("text", text);
-    if (audioFile) formData.append("file", audioFile, "recording.wav");
+    const userId = localStorage.getItem('user_id') || 'anonymous';
+    
+    formData.append("user_id", userId);
+    formData.append("session_id", currentSessionId || '');
+    
+    if (text) {
+      formData.append("content", text);
+      formData.append("message_type", "text");
+    }
+    if (audioFile) {
+      formData.append("audio_file", audioFile, "recording.wav");
+      formData.append("message_type", "audio");
+    }
 
     try {
-      const response = await fetch("http://localhost:8000/process/", {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch("http://localhost:8000/messages/send", {
         method: "POST",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formData,
       });
+      
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
       return await response.json();
@@ -122,8 +136,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       const response = await sendToBackend(currentInput);
       const botResponse = {
         type: "bot" as const,
-        content:
-          response.response || response.message || "I'm here to listen. 🌸",
+        content: response.ai_response || response.message || "I'm here to listen. 🌸",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botResponse]);
@@ -155,19 +168,16 @@ const MainChat = ({ userResponses }: MainChatProps) => {
 
     try {
       const response = await sendToBackend(undefined, audioBlob);
-      if (response.text && response.text.trim()) {
+      if (response.transcribed_text && response.transcribed_text.trim()) {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg === userMessage ? { ...msg, content: response.text } : msg
+            msg === userMessage ? { ...msg, content: response.transcribed_text } : msg
           )
         );
       }
       const botResponse = {
         type: "bot" as const,
-        content:
-          response.response ||
-          response.message ||
-          "I heard you. Let me think. 🌸",
+        content: response.ai_response || response.message || "I heard you. Let me think. 🌸",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botResponse]);
@@ -193,15 +203,45 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     }
   };
 
+  const loadSessionMessages = async (sessionId: string) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/messages/session/${sessionId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const formattedMessages = data.messages.map((msg: any) => ({
+          type: msg.sender_type === 'user' ? 'user' : 'bot',
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+        }));
+        setMessages(formattedMessages);
+      } else {
+        // If no messages found, show welcome message
+        setMessages([{
+          type: "bot" as const,
+          content: `Hi ${userName}! I'm ${botName}, your personal guide to emotional well-being. How are you feeling today? 💜`,
+          timestamp: new Date(),
+        }]);
+      }
+    } catch (error) {
+      console.error('Error loading session messages:', error);
+      setMessages([{
+        type: "bot" as const,
+        content: `Hi ${userName}! I'm ${botName}, your personal guide to emotional well-being. How are you feeling today? 💜`,
+        timestamp: new Date(),
+      }]);
+    }
+  };
+
   const handleSessionSelect = (sessionId: string) => {
     setCurrentSessionId(sessionId);
-    // In a real app, you would load messages for this session
-    // For now, we'll just clear the current messages
-    setMessages([{
-      type: "bot" as const,
-      content: `Hi ${userName}! I'm ${botName}, your personal guide to emotional well-being. How are you feeling today? 💜`,
-      timestamp: new Date(),
-    }]);
+    loadSessionMessages(sessionId);
   };
 
   const handleNewSession = () => {

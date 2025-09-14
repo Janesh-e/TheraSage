@@ -24,44 +24,79 @@ const AuthCard = ({ onComplete, onBack, onSkipToChat }: AuthCardProps) => {
     setIsLoading(true);
 
     try {
-      const endpoint = isSignUp ? '/signup/' : '/login/';
-      const payload = isSignUp 
-        ? { name, email, password }
-        : { email, password };
+      if (isSignUp) {
+        // Signup endpoint
+        const signupPayload = {
+          name,
+          email,
+          password,
+          college_id: "default-college",
+          college_name: "Default College"
+        };
 
-      console.log(`Sending ${isSignUp ? 'signup' : 'login'} request to:`, endpoint);
-      console.log('Payload:', payload);
-
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      console.log('Response:', data);
-
-      if (response.ok) {
-        toast({
-          title: "Success!",
-          description: data.message || `${isSignUp ? 'Account created' : 'Login'} successful!`,
+        const response = await fetch('http://localhost:8000/auth/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(signupPayload),
         });
-        
-        // Store user info if login was successful
-        if (!isSignUp && data.user_id) {
-          localStorage.setItem('user_id', data.user_id.toString());
+
+        const data = await response.json();
+
+        if (response.ok) {
+          toast({
+            title: "Success!",
+            description: "Account created successfully!",
+          });
+          
+          // Store user info
+          localStorage.setItem('user_id', data.id);
+          localStorage.setItem('user_name', data.name);
+          localStorage.setItem('user_email', data.email);
+          
+          onComplete(false); // New user
+        } else {
+          toast({
+            title: "Error",
+            description: data.detail || "Signup failed. Please try again.",
+            variant: "destructive",
+          });
         }
-        
-        // Pass whether this is a returning user (login) or new user (signup)
-        onComplete(!isSignUp);
       } else {
-        toast({
-          title: "Error",
-          description: data.detail || `${isSignUp ? 'Signup' : 'Login'} failed. Please try again.`,
-          variant: "destructive",
+        // Login endpoint - using form data as expected by OAuth2PasswordRequestForm
+        const formData = new FormData();
+        formData.append('username', email);
+        formData.append('password', password);
+
+        const response = await fetch('http://localhost:8000/auth/login', {
+          method: 'POST',
+          body: formData,
         });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          toast({
+            title: "Success!",
+            description: "Login successful!",
+          });
+          
+          // Store authentication data
+          localStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('user_id', data.user.id);
+          localStorage.setItem('user_name', data.user.name);
+          localStorage.setItem('user_email', data.user.email);
+          localStorage.setItem('anonymous_username', data.user.anonymous_username);
+          
+          onComplete(true); // Returning user
+        } else {
+          toast({
+            title: "Error",
+            description: data.detail || "Login failed. Please try again.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error('Auth error:', error);
