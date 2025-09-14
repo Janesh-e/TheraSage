@@ -33,11 +33,15 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const userName = userResponses[1] || "friend";
+  const botName = userResponses[2] || "TheraSage";
 
   // Helper function to safely create Date objects
   const safeCreateDate = (date?: string | Date): Date => {
@@ -54,85 +58,6 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       return new Date();
     }
   };
-
-  useEffect(() => {
-    // Validate authentication before initializing
-    const token = localStorage.getItem('access_token');
-    const userId = localStorage.getItem('user_id');
-
-    console.log('Auth check:', { token: !!token, userId: !!userId }); // Debug log
-
-    if (!token || !userId) {
-      setAuthError('Authentication required. Please log in again.');
-      setIsLoading(false);
-      return;
-    }
-
-    // Clear any previous auth errors
-    setAuthError(null);
-    setIsLoading(false);
-  }, []);
-
-  // Add early return in render if auth fails
-  if (authError) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-red-600 mb-2">Authentication Error</h2>
-          <p className="text-gray-600">{authError}</p>
-          <button
-            onClick={() => window.location.href = '/login'}
-            className="mt-4 px-4 py-2 bg-primary text-white rounded"
-          >
-            Go to Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-red-600 mb-2">Error</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <div className="space-x-2">
-            <button
-              onClick={() => {
-                setError(null);
-                setIsInitialized(false);
-                setIsLoading(true);
-              }}
-              className="px-4 py-2 bg-primary text-white rounded"
-            >
-              Retry
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-gray-500 text-white rounded"
-            >
-              Refresh Page
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const userName = userResponses[1] || "friend";
-  const botName = userResponses[2] || "TheraSage";
 
   const speakText = (text: string) => {
     if (!readAloud || !("speechSynthesis" in window)) return;
@@ -154,7 +79,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     speechSynthesis.speak(utterance);
   };
 
-  // Initialize with welcome message when component mounts or session changes
+  // Initialize with welcome message
   const initializeWelcomeMessage = () => {
     const welcomeMessage = {
       type: "bot" as const,
@@ -164,7 +89,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     setMessages([welcomeMessage]);
   };
 
-  // Create a new session automatically when needed
+  // Create a new session
   const createNewSession = async (): Promise<string | null> => {
     try {
       const userId = localStorage.getItem('user_id');
@@ -173,8 +98,6 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       if (!userId || !token) {
         throw new Error('Authentication credentials missing');
       }
-
-      console.log('Creating new session for user:', userId); // Debug log
 
       const response = await fetch(`http://localhost:8000/sessions/`, {
         method: 'POST',
@@ -194,69 +117,11 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       }
 
       const newSession = await response.json();
-      console.log('New session created:', newSession); // Debug log
       return newSession.id;
     } catch (error) {
       console.error('Error creating session:', error);
       setError(`Failed to create chat session: ${error.message}`);
       return null;
-    }
-  };
-
-  // Initialize the component
-  useEffect(() => {
-    const initialize = async () => {
-      try {
-        if (authError || isInitialized) return;
-
-        console.log('Initializing MainChat...'); // Debug log
-
-        const token = localStorage.getItem('access_token');
-        const userId = localStorage.getItem('user_id');
-
-        if (!token || !userId) {
-          setAuthError('Please log in to continue');
-          return;
-        }
-
-        if (!currentSessionId) {
-          console.log('No current session, creating new one...'); // Debug log
-          const newSessionId = await createNewSession();
-          if (newSessionId) {
-            setCurrentSessionId(newSessionId);
-          } else {
-            console.warn('Failed to create session, using offline mode');
-          }
-        }
-
-        // Only show welcome message after successful setup
-        initializeWelcomeMessage();
-        setIsInitialized(true);
-        console.log('MainChat initialized successfully'); // Debug log
-
-      } catch (error) {
-        console.error('Initialization error:', error);
-        setError('Failed to initialize chat. Please refresh the page.');
-      }
-    };
-
-    initialize();
-  }, [userName, botName, authError, isInitialized, currentSessionId]);
-
-  const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
-    messagesEndRef.current?.scrollIntoView({ behavior });
-  };
-
-  useEffect(() => {
-    scrollToBottom("auto");
-  }, [messages.length]);
-
-  const handleScroll = () => {
-    if (chatContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } =
-        chatContainerRef.current;
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-      setShowScrollToBottom(!isAtBottom);
     }
   };
 
@@ -435,14 +300,11 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   };
 
   const handleSessionSelect = (sessionId: string) => {
-    console.log('Selecting session:', sessionId);
     setCurrentSessionId(sessionId);
     loadSessionMessages(sessionId);
   };
 
   const handleNewSession = async () => {
-    console.log('Creating new session...');
-
     // Create a new session
     const newSessionId = await createNewSession();
     if (newSessionId) {
@@ -456,6 +318,125 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       initializeWelcomeMessage();
     }
   };
+
+  const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+
+  const handleScroll = () => {
+    if (chatContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } =
+        chatContainerRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollToBottom(!isAtBottom);
+    }
+  };
+
+  // Single useEffect for initialization
+  useEffect(() => {
+    const initializeChat = async () => {
+      try {
+        // Validate authentication
+        const token = localStorage.getItem('access_token');
+        const userId = localStorage.getItem('user_id');
+
+        if (!token || !userId) {
+          setAuthError('Authentication required. Please log in again.');
+          setIsLoading(false);
+          return;
+        }
+
+        // Clear any previous auth errors
+        setAuthError(null);
+
+        // If not initialized yet, set up welcome message and create session
+        if (!isInitialized) {
+          // Create initial session if none exists
+          if (!currentSessionId) {
+            const newSessionId = await createNewSession();
+            if (newSessionId) {
+              setCurrentSessionId(newSessionId);
+            }
+          }
+
+          // Show welcome message
+          initializeWelcomeMessage();
+          setIsInitialized(true);
+        }
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Initialization error:', error);
+        setError('Failed to initialize chat. Please refresh the page.');
+        setIsLoading(false);
+      }
+    };
+
+    initializeChat();
+  }, [userName, botName, isInitialized, currentSessionId]);
+
+  // Separate useEffect for scrolling
+  useEffect(() => {
+    scrollToBottom("auto");
+  }, [messages.length]);
+
+  // Early returns for error states
+  if (authError) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Authentication Error</h2>
+          <p className="text-gray-600">{authError}</p>
+          <button
+            onClick={() => window.location.href = '/login'}
+            className="mt-4 px-4 py-2 bg-primary text-white rounded"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Error</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <div className="space-x-2">
+            <button
+              onClick={() => {
+                setError(null);
+                setIsInitialized(false);
+                setIsLoading(true);
+              }}
+              className="px-4 py-2 bg-primary text-white rounded"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-gray-500 text-white rounded"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -480,8 +461,9 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                   </h1>
                   <div className="flex items-center space-x-2">
                     <div
-                      className={`w-2.5 h-2.5 rounded-full shadow-sm ${llmMode === "online" ? "bg-green-500" : "bg-red-500"
-                        }`}
+                      className={`w-2.5 h-2.5 rounded-full shadow-sm ${
+                        llmMode === "online" ? "bg-green-500" : "bg-red-500"
+                      }`}
                     ></div>
                     <span className="text-sm text-muted-foreground font-medium">
                       {llmMode === "online" ? "Online" : "Offline"}
