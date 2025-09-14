@@ -1,4 +1,10 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Video, MapPin, Phone } from "lucide-react";
@@ -41,9 +47,9 @@ const getTypeColor = (type: string) => {
     case "emergency":
       return "bg-destructive text-destructive-foreground";
     case "follow-up":
-      return "bg-blue-500 text-white";
+      return "bg-primary text-primary-foreground";
     case "check-in":
-      return "bg-green-500 text-white";
+      return "bg-emerald-500 text-white dark:bg-emerald-600";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -96,14 +102,18 @@ export function UpcomingSessionsWidget() {
                   <span className="text-sm font-medium">{session.time}</span>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>Duration: {session.duration}</span>
-                <Badge variant={session.status === "confirmed" ? "default" : "secondary"}>
+                <Badge
+                  variant={
+                    session.status === "confirmed" ? "default" : "secondary"
+                  }
+                >
                   {session.status}
                 </Badge>
               </div>
-              
+
               <div className="flex gap-2">
                 <Button size="sm" className="flex-1">
                   Start Session

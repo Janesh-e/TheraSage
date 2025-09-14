@@ -25,7 +25,11 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light" storageKey="therasage-ui-theme">
+    <ThemeProvider
+      defaultTheme="light"
+      defaultColor="orange"
+      storageKey="therasage-ui-theme"
+    >
       <TooltipProvider>
         <BrowserRouter>
           <div className="min-h-screen w-full bg-background text-foreground overflow-x-hidden">
@@ -111,15 +115,12 @@ const App = () => (
                   </Layout>
                 }
               />
-              
+
               {/* Therapist Routes */}
               <Route
                 path="/therapist/dashboard"
                 element={
-                  <TherapistLayout
-                    title="Therapist Dashboard"
-                    description="Monitor crisis alerts, manage sessions, and track your workload"
-                  >
+                  <TherapistLayout>
                     <TherapistDashboard />
                   </TherapistLayout>
                 }
@@ -127,10 +128,7 @@ const App = () => (
               <Route
                 path="/therapist/crisis"
                 element={
-                  <TherapistLayout
-                    title="Crisis Management"
-                    description="Review and respond to crisis alerts from students"
-                  >
+                  <TherapistLayout>
                     <TherapistCrisis />
                   </TherapistLayout>
                 }
@@ -138,15 +136,12 @@ const App = () => (
               <Route
                 path="/therapist/sessions"
                 element={
-                  <TherapistLayout
-                    title="Session Management"
-                    description="Manage and schedule therapy sessions"
-                  >
+                  <TherapistLayout>
                     <TherapistSessions />
                   </TherapistLayout>
                 }
               />
-              
+
               <Route path="*" element={<NotFound />} />
             </Routes>
           </div>

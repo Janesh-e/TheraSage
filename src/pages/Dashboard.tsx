@@ -112,15 +112,20 @@ const Dashboard = () => {
                 <LineChart data={moodData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="var(--color-border)"
+                    stroke="hsl(var(--border))"
+                    opacity={0.5}
                   />
                   <XAxis
                     dataKey="date"
-                    stroke="var(--color-muted-foreground)"
+                    stroke="hsl(var(--foreground))"
+                    fontSize={12}
+                    fill="hsl(var(--foreground))"
                   />
                   <YAxis
                     domain={[0, 10]}
-                    stroke="var(--color-muted-foreground)"
+                    stroke="hsl(var(--foreground))"
+                    fontSize={12}
+                    fill="hsl(var(--foreground))"
                   />
                   <Tooltip
                     contentStyle={{
@@ -135,14 +140,14 @@ const Dashboard = () => {
                   <Line
                     type="monotone"
                     dataKey="mood"
-                    stroke={"var(--orange-primary)"}
+                    stroke="hsl(var(--primary))"
                     strokeWidth={3}
                     dot={{
-                      fill: "var(--orange-primary)",
+                      fill: "hsl(var(--primary))",
                       strokeWidth: 2,
                       r: 4,
                     }}
-                    activeDot={{ r: 6 }}
+                    activeDot={{ r: 6, fill: "hsl(var(--primary))" }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -153,7 +158,7 @@ const Dashboard = () => {
           <Card className="bg-card/90 backdrop-blur-sm border-border shadow-lg rounded-xl">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center text-card-foreground">
-                <Activity className="w-5 h-5 mr-2 text-orange-500" />
+                <Activity className="w-5 h-5 mr-2 text-primary" />
                 Activity Pattern
               </CardTitle>
               <CardDescription>
@@ -165,13 +170,20 @@ const Dashboard = () => {
                 <BarChart data={activityData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="var(--color-border)"
+                    stroke="hsl(var(--border))"
+                    opacity={0.5}
                   />
                   <XAxis
                     dataKey="time"
-                    stroke="var(--color-muted-foreground)"
+                    stroke="hsl(var(--foreground))"
+                    fontSize={12}
+                    fill="hsl(var(--foreground))"
                   />
-                  <YAxis stroke="var(--color-muted-foreground)" />
+                  <YAxis
+                    stroke="hsl(var(--foreground))"
+                    fontSize={12}
+                    fill="hsl(var(--foreground))"
+                  />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "var(--color-card)",
@@ -184,7 +196,7 @@ const Dashboard = () => {
                   />
                   <Bar
                     dataKey="sessions"
-                    fill={"var(--orange-primary)"}
+                    fill="hsl(var(--primary))"
                     radius={[8, 8, 0, 0]}
                   />
                 </BarChart>
@@ -326,7 +338,7 @@ const Dashboard = () => {
                   <div className="w-full bg-accent rounded-full h-2">
                     <div
                       className="h-2 rounded-full w-full"
-                      style={{ backgroundColor: "var(--orange-primary)" }}
+                      style={{ backgroundColor: "hsl(var(--primary))" }}
                     ></div>
                   </div>
                 </div>
@@ -343,7 +355,7 @@ const Dashboard = () => {
                     <div
                       className="h-2 rounded-full"
                       style={{
-                        backgroundColor: "var(--orange-primary)",
+                        backgroundColor: "hsl(var(--primary))",
                         width: "71%",
                       }}
                     ></div>
@@ -396,8 +408,8 @@ const Dashboard = () => {
               <Button
                 className="rounded-lg px-8 py-3 shadow-sm hover:shadow-md transition-all duration-200"
                 style={{
-                  backgroundColor: "var(--orange-primary)",
-                  color: "var(--orange-primary-foreground)",
+                  backgroundColor: "hsl(var(--primary))",
+                  color: "hsl(var(--primary-foreground))",
                 }}
               >
                 <span className="text-button font-medium">Reflect on This</span>

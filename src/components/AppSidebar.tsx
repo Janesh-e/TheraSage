@@ -22,7 +22,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { ThemeToggle } from "./ThemeToggle";
+import { Settings as SettingsComponent } from "./Settings";
 
 const navigationItems = [
   {
@@ -136,13 +136,7 @@ const AppSidebar = () => {
 
       <SidebarFooter className="px-6 py-4 border-t border-sidebar-border/50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3 text-muted-foreground hover:text-sidebar-foreground transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-sidebar-accent/30">
-            <Settings className="w-4 h-4" />
-            {!isCollapsed && (
-              <span className="text-sm font-medium">Settings</span>
-            )}
-          </div>
-          <ThemeToggle />
+          <SettingsComponent isCollapsed={isCollapsed} />
         </div>
       </SidebarFooter>
     </Sidebar>

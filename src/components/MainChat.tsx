@@ -233,7 +233,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                   <div className="flex items-center space-x-2">
                     <div
                       className={`w-2.5 h-2.5 rounded-full shadow-sm ${
-                        llmMode === "online" ? "bg-green-500" : "bg-primary"
+                        llmMode === "online" ? "bg-green-500" : "bg-red-500"
                       }`}
                     ></div>
                     <span className="text-sm text-muted-foreground font-medium">
@@ -242,14 +242,13 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-4">
                 <LLMToggle mode={llmMode} onModeChange={setLlmMode} />
                 <ReadAloudToggle enabled={readAloud} onToggle={setReadAloud} />
               </div>
             </div>
           </header>
-
-          <div
+          <main
             className="flex-1 overflow-y-auto"
             ref={chatContainerRef}
             onScroll={handleScroll}
@@ -270,8 +269,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
               {isTyping && <TypingIndicator />}
               <div ref={messagesEndRef} />
             </div>
-          </div>
-
+          </main>
           <footer className="flex-shrink-0 border-t border-border bg-background/80 backdrop-blur-sm px-6 py-4 shadow-lg">
             <div className="max-w-4xl mx-auto">
               <div className="flex items-end space-x-3">
@@ -311,7 +309,6 @@ const MainChat = ({ userResponses }: MainChatProps) => {
               </div>
             </div>
           </footer>
-
           <AnimatePresence>
             {showScrollToBottom && (
               <motion.div
