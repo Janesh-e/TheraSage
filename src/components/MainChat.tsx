@@ -37,21 +37,40 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Helper function to safely create Date objects
+  const safeCreateDate = (date?: string | Date): Date => {
+    if (!date) return new Date();
+    
+    if (date instanceof Date) {
+      return isNaN(date.getTime()) ? new Date() : date;
+    }
+    
+    try {
+      const parsed = new Date(date);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    } catch {
+      return new Date();
+    }
+  };
 
   useEffect(() => {
     // Validate authentication before initializing
     const token = localStorage.getItem('access_token');
     const userId = localStorage.getItem('user_id');
 
+    console.log('Auth check:', { token: !!token, userId: !!userId }); // Debug log
+
     if (!token || !userId) {
       setAuthError('Authentication required. Please log in again.');
+      setIsLoading(false);
       return;
     }
 
     // Clear any previous auth errors
     setAuthError(null);
+    setIsLoading(false);
   }, []);
 
   // Add early return in render if auth fails
@@ -101,6 +120,17 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   const userName = userResponses[1] || "friend";
   const botName = userResponses[2] || "TheraSage";
 
@@ -144,6 +174,8 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         throw new Error('Authentication credentials missing');
       }
 
+      console.log('Creating new session for user:', userId); // Debug log
+
       const response = await fetch(`http://localhost:8000/sessions/`, {
         method: 'POST',
         headers: {
@@ -162,6 +194,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       }
 
       const newSession = await response.json();
+      console.log('New session created:', newSession); // Debug log
       return newSession.id;
     } catch (error) {
       console.error('Error creating session:', error);
@@ -174,6 +207,10 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   useEffect(() => {
     const initialize = async () => {
       try {
+        if (authError || isInitialized) return;
+
+        console.log('Initializing MainChat...'); // Debug log
+
         const token = localStorage.getItem('access_token');
         const userId = localStorage.getItem('user_id');
 
@@ -183,11 +220,11 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         }
 
         if (!currentSessionId) {
+          console.log('No current session, creating new one...'); // Debug log
           const newSessionId = await createNewSession();
           if (newSessionId) {
             setCurrentSessionId(newSessionId);
           } else {
-            // Handle session creation failure
             console.warn('Failed to create session, using offline mode');
           }
         }
@@ -195,17 +232,16 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         // Only show welcome message after successful setup
         initializeWelcomeMessage();
         setIsInitialized(true);
+        console.log('MainChat initialized successfully'); // Debug log
 
       } catch (error) {
         console.error('Initialization error:', error);
-        setAuthError('Failed to initialize chat. Please refresh the page.');
+        setError('Failed to initialize chat. Please refresh the page.');
       }
     };
 
-    if (!isInitialized && !authError) {
-      initialize();
-    }
-  }, [userName, botName, isInitialized, currentSessionId, authError]);
+    initialize();
+  }, [userName, botName, authError, isInitialized, currentSessionId]);
 
   const scrollToBottom = (behavior: "smooth" | "auto" = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -381,7 +417,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
           const formattedMessages = data.messages.map((msg: any) => ({
             type: msg.sender_type === 'user' ? 'user' : 'bot',
             content: msg.content,
-            timestamp: new Date(msg.created_at),
+            timestamp: safeCreateDate(msg.created_at),
           }));
           setMessages(formattedMessages);
         } else {

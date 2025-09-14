@@ -26,6 +26,10 @@ interface ChatSession {
   lastMessage: string;
   timestamp: Date;
   messageCount: number;
+  last_message_at?: string;
+  total_messages?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface ChatSessionsSidebarProps {
@@ -64,6 +68,33 @@ const ChatSessionsSidebar = ({
     return localStorage.getItem('user_id');
   };
 
+  // Helper function to safely parse dates
+  const safeParseDate = (dateString: string | undefined | null): Date => {
+    if (!dateString) return new Date();
+    try {
+      const parsed = new Date(dateString);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    } catch {
+      return new Date();
+    }
+  };
+
+  // Helper function to transform backend response to frontend format
+  const transformSessionData = (backendSession: any): ChatSession => {
+    return {
+      id: backendSession.id,
+      title: backendSession.title || `Chat Session ${backendSession.session_number || ''}`,
+      lastMessage: "Continue your conversation...", // Default since backend doesn't provide this
+      timestamp: safeParseDate(backendSession.last_message_at || backendSession.updated_at || backendSession.created_at),
+      messageCount: backendSession.total_messages || 0,
+      // Keep original properties for reference
+      last_message_at: backendSession.last_message_at,
+      total_messages: backendSession.total_messages,
+      created_at: backendSession.created_at,
+      updated_at: backendSession.updated_at,
+    };
+  };
+
   const loadSessions = async () => {
     try {
       setIsLoading(true);
@@ -85,7 +116,10 @@ const ChatSessionsSidebar = ({
       }
 
       const data = await response.json();
-      setSessions(data);
+      const transformedSessions = Array.isArray(data) 
+        ? data.map(transformSessionData)
+        : [];
+      setSessions(transformedSessions);
     } catch (error) {
       console.error('Error loading sessions:', error);
       setError('Failed to load chat sessions');
@@ -95,13 +129,23 @@ const ChatSessionsSidebar = ({
   };
 
   const formatTimestamp = (date: Date) => {
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    // Additional safety check
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+      return "Recently";
+    }
 
-    if (diffInHours < 1) return "Just now";
-    if (diffInHours < 24) return `${Math.floor(diffInHours)}h ago`;
-    if (diffInHours < 48) return "Yesterday";
-    return date.toLocaleDateString();
+    try {
+      const now = new Date();
+      const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+      if (diffInHours < 1) return "Just now";
+      if (diffInHours < 24) return `${Math.floor(diffInHours)}h ago`;
+      if (diffInHours < 48) return "Yesterday";
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting timestamp:', error);
+      return "Recently";
+    }
   };
 
   const handleRename = (sessionId: string, currentTitle: string) => {
@@ -204,9 +248,12 @@ const ChatSessionsSidebar = ({
 
     const newSession = await response.json();
     console.log('New session created:', newSession); // Debug log
-    
-    // Add new session to the top of the list
-    setSessions((prev) => [newSession, ...prev]);
+
+     // Transform the new session data
+      const transformedNewSession = transformSessionData(newSession);
+      
+      // Add new session to the top of the list
+      setSessions((prev) => [transformedNewSession, ...prev]);
     
     // Select the new session
     console.log('Selecting new session:', newSession.id); // Debug log
@@ -217,7 +264,7 @@ const ChatSessionsSidebar = ({
     }
   };
 
-  const handleSessionSelect = (sessionId: string) => {
+    const handleSessionSelect = (sessionId: string) => {
     // Validate UUID format before selecting
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(sessionId)) {
@@ -228,6 +275,58 @@ const ChatSessionsSidebar = ({
     
     onSessionSelect(sessionId);
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="w-80 h-full bg-card border-r border-border flex flex-col">
+        <div className="p-4 border-b border-border">
+          <Button
+            onClick={handleNewSession}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Chat
+          </Button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-sm text-muted-foreground">Loading sessions...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="w-80 h-full bg-card border-r border-border flex flex-col">
+        <div className="p-4 border-b border-border">
+          <Button
+            onClick={handleNewSession}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Chat
+          </Button>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center">
+            <div className="text-sm text-red-600 mb-2">{error}</div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setError(null);
+                loadSessions();
+              }}
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-80 h-full bg-card border-r border-border flex flex-col">
@@ -245,155 +344,163 @@ const ChatSessionsSidebar = ({
       {/* Sessions List */}
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {sessions.map((session) => {
-            const isSelected = currentSessionId === session.id;
+          {sessions.length === 0 ? (
+            <div className="text-center py-8">
+              <MessageSquare className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No chat sessions yet</p>
+              <p className="text-xs text-muted-foreground">Start a new conversation!</p>
+            </div>
+          ) : (
+            sessions.map((session) => {
+              const isSelected = currentSessionId === session.id;
 
-            return (
-              <div
-                key={session.id}
-                className={cn(
-                  "group relative p-3 mb-2 rounded-lg cursor-pointer transition-all duration-200",
-                  isSelected
-                    ? "bg-primary/10 border border-primary/30 shadow-sm"
-                    : "hover:bg-muted/50"
-                )}
-                onClick={() => onSessionSelect(session.id)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    {editingId === session.id ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveRename(session.id);
-                            if (e.key === "Escape") cancelRename();
-                          }}
-                          className="h-6 text-sm px-2 py-1"
-                          autoFocus
-                          onBlur={() => saveRename(session.id)}
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            saveRename(session.id);
-                          }}
-                        >
-                          <Check className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            cancelRename();
-                          }}
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 mb-1">
-                          <MessageSquare
-                            className={cn(
-                              "w-4 h-4 flex-shrink-0",
-                              isSelected
-                                ? "text-primary"
-                                : "text-muted-foreground"
-                            )}
+              return (
+                <div
+                  key={session.id}
+                  className={cn(
+                    "group relative p-3 mb-2 rounded-lg cursor-pointer transition-all duration-200",
+                    isSelected
+                      ? "bg-primary/10 border border-primary/30 shadow-sm"
+                      : "hover:bg-muted/50"
+                  )}
+                  onClick={() => handleSessionSelect(session.id)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      {editingId === session.id ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveRename(session.id);
+                              if (e.key === "Escape") cancelRename();
+                            }}
+                            className="h-6 text-sm px-2 py-1"
+                            autoFocus
+                            onBlur={() => saveRename(session.id)}
                           />
-                          <h3
-                            className={cn(
-                              "font-medium text-sm truncate",
-                              isSelected
-                                ? "text-primary font-semibold"
-                                : "text-foreground"
-                            )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              saveRename(session.id);
+                            }}
                           >
-                            {session.title}
-                          </h3>
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              cancelRename();
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
                         </div>
-                        <p
-                          className={cn(
-                            "text-xs truncate mb-1",
-                            isSelected
-                              ? "text-primary/70"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {session.lastMessage}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 mb-1">
+                            <MessageSquare
+                              className={cn(
+                                "w-4 h-4 flex-shrink-0",
+                                isSelected
+                                  ? "text-primary"
+                                  : "text-muted-foreground"
+                              )}
+                            />
+                            <h3
+                              className={cn(
+                                "font-medium text-sm truncate",
+                                isSelected
+                                  ? "text-primary font-semibold"
+                                  : "text-foreground"
+                              )}
+                            >
+                              {session.title}
+                            </h3>
+                          </div>
+                          <p
                             className={cn(
-                              "text-xs",
+                              "text-xs truncate mb-1",
                               isSelected
-                                ? "text-primary/60"
+                                ? "text-primary/70"
                                 : "text-muted-foreground"
                             )}
                           >
-                            {formatTimestamp(session.timestamp)}
-                          </span>
-                          <span
-                            className={cn(
-                              "text-xs",
-                              isSelected
-                                ? "text-primary/60"
-                                : "text-muted-foreground"
-                            )}
+                            {session.lastMessage}
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={cn(
+                                "text-xs",
+                                isSelected
+                                  ? "text-primary/60"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              {formatTimestamp(session.timestamp)}
+                            </span>
+                            <span
+                              className={cn(
+                                "text-xs",
+                                isSelected
+                                  ? "text-primary/60"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              {session.messageCount} messages
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {editingId !== session.id && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 ml-2"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {session.messageCount} messages
-                          </span>
-                        </div>
-                      </>
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRename(session.id, session.title);
+                            }}
+                          >
+                            <Edit2 className="w-4 h-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(session.id);
+                            }}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
-
-                  {editingId !== session.id && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 ml-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRename(session.id, session.title);
-                          }}
-                        >
-                          <Edit2 className="w-4 h-4 mr-2" />
-                          Rename
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(session.id);
-                          }}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </ScrollArea>
 
