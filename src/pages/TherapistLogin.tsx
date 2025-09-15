@@ -30,7 +30,7 @@ const TherapistLogin = () => {
       formDataToSend.append("username", formData.email);
       formDataToSend.append("password", formData.password);
 
-      const response = await fetch("http://localhost:8000/auth/login", {
+      const response = await fetch("http://localhost:8000/auth/therapist/login", {
         method: "POST",
         body: formDataToSend,
       });
@@ -44,7 +44,7 @@ const TherapistLogin = () => {
       
       // Store therapist authentication data
       localStorage.setItem("therapist_token", data.access_token);
-      localStorage.setItem("therapist_user", JSON.stringify(data.user));
+      localStorage.setItem("therapist_user", JSON.stringify(data.therapist));
       
       toast.success("Login successful!");
       
