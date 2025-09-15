@@ -183,7 +183,7 @@ async def get_therapist_crisis_worklist(
             status=alert.status,
             detected_at=alert.detected_at,
             hours_since_detection=round(hours_since, 2),
-            confidence_score=alert.confidence_score,
+            confidence_score=round(alert.confidence_score / 10.0, 2),
             has_session_scheduled=has_session,
             user_college=alert.user.college_name if alert.user else "Unknown"
         ))
@@ -268,6 +268,8 @@ async def send_quick_crisis_response(
     current_time = datetime.utcnow()
     
     if response_type == "acknowledge":
+        if crisis_alert.status == "acknowledged":
+            raise HTTPException(status_code=400, detail="Alert already acknowledged")
         crisis_alert.status = "acknowledged"
         crisis_alert.acknowledged_at = current_time
         

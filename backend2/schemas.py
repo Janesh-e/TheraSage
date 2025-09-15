@@ -131,6 +131,7 @@ class TherapistResponse(BaseModel):
     status: str
     is_on_call: bool
     created_at: datetime
+    last_login: Optional[datetime] = None
     
     class Config:
         from_attributes = True

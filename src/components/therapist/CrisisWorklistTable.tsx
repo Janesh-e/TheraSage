@@ -90,11 +90,27 @@ export function CrisisWorklistTable() {
     fetchCrisisWorklist();
   }, [statusFilter, riskFilter]);
 
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+    if (diffInHours < 1) {
+      const minutes = Math.round(diffInHours * 60);
+      return `${minutes}m ago`;
+    } else if (diffInHours < 24) {
+      return `${Math.round(diffInHours)}h ago`;
+    } else {
+      const days = Math.round(diffInHours / 24);
+      return `${days}d ago`;
+    }
+  };
+
   const fetchCrisisWorklist = async () => {
     try {
       const token = localStorage.getItem("therapist_token");
       const therapistUser = JSON.parse(localStorage.getItem("therapist_user") || "{}");
-      
+
       if (!token || !therapistUser.id) {
         toast.error("Authentication required");
         return;
@@ -111,13 +127,24 @@ export function CrisisWorklistTable() {
         },
       });
 
-      if (!response.ok) throw new Error("Failed to fetch crisis worklist");
+      if (response.status === 401) {
+        toast.error("Authentication expired. Please login again.");
+        localStorage.removeItem("therapist_token");
+        localStorage.removeItem("therapist_user");
+        window.location.href = "/therapist/login";
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error("Failed to fetch crisis worklist");
+      }
 
       const data = await response.json();
       setCrisisData(data);
     } catch (error) {
       console.error("Error fetching crisis worklist:", error);
-      toast.error("Failed to load crisis worklist");
+      toast.error(error.message || "Failed to load crisis worklist");
     } finally {
       setLoading(false);
     }
@@ -214,16 +241,16 @@ export function CrisisWorklistTable() {
     })
     .sort((a, b) => {
       if (!sortColumn) return 0;
-      
+
       let aValue: any = a[sortColumn as keyof CrisisAlert];
       let bValue: any = b[sortColumn as keyof CrisisAlert];
-      
+
       // Handle date sorting
       if (sortColumn === "detected_at") {
         aValue = new Date(aValue).getTime();
         bValue = new Date(bValue).getTime();
       }
-      
+
       if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
       if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
       return 0;
@@ -246,7 +273,7 @@ export function CrisisWorklistTable() {
               className="pl-10"
             />
           </div>
-          
+
           <div className="flex gap-2">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-32">
@@ -260,7 +287,7 @@ export function CrisisWorklistTable() {
                 <SelectItem value="resolved">Resolved</SelectItem>
               </SelectContent>
             </Select>
-            
+
             <Select value={riskFilter} onValueChange={setRiskFilter}>
               <SelectTrigger className="w-32">
                 <SelectValue placeholder="Risk Level" />
@@ -346,9 +373,7 @@ export function CrisisWorklistTable() {
                         {crisis.risk_level.toUpperCase()}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {crisis.hours_since_detection.toFixed(1)}h ago
-                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatTimeAgo(crisis.detected_at)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <div className="w-8 h-2 bg-muted rounded-full overflow-hidden">
@@ -358,7 +383,7 @@ export function CrisisWorklistTable() {
                           />
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          {Math.round(crisis.confidence_score * 100)}%
+                          {Math.round(crisis.confidence_score > 1 ? crisis.confidence_score : crisis.confidence_score * 100)}%
                         </span>
                       </div>
                     </TableCell>
@@ -380,8 +405,8 @@ export function CrisisWorklistTable() {
                         </Button>
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               title="Schedule Session"
                               onClick={() => setSelectedCrisis(crisis)}
@@ -417,7 +442,7 @@ export function CrisisWorklistTable() {
                                   onChange={(e) => setSessionTime(e.target.value)}
                                 />
                               </div>
-                              <Button 
+                              <Button
                                 onClick={handleScheduleSession}
                                 disabled={schedulingSession}
                                 className="w-full"
@@ -427,8 +452,8 @@ export function CrisisWorklistTable() {
                             </div>
                           </DialogContent>
                         </Dialog>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           title="Acknowledge"
                           onClick={() => handleQuickResponse(crisis.id, "acknowledge")}
