@@ -129,7 +129,7 @@ const Index = () => {
             {/* Desktop Action Buttons */}
             <div className="hidden md:flex items-center space-x-4">
               <Button
-                onClick={() => (window.location.href = "/therapist/dashboard")}
+                onClick={() => (window.location.href = "/therapist/login")}
                 variant="outline"
                 className="text-emerald-600 border-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-emerald-400 dark:border-emerald-400 dark:hover:bg-emerald-950"
               >
@@ -190,7 +190,7 @@ const Index = () => {
                   <div className="flex flex-col space-y-2 pt-4 border-t border-border">
                     <Button
                       onClick={() =>
-                        (window.location.href = "/therapist/dashboard")
+                        (window.location.href = "/therapist/login")
                       }
                       variant="outline"
                       className="w-full text-emerald-600 border-emerald-600 hover:bg-emerald-50"
