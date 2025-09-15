@@ -6,6 +6,7 @@ from datetime import datetime
 from db import get_db
 from models import ChatSession, User, RiskLevel
 from schemas import ChatSessionCreate, ChatSessionResponse, SessionRenameRequest
+from uuid import UUID
 
 router = APIRouter(
     prefix="/sessions",
@@ -61,31 +62,59 @@ async def rename_chat_session(
     db: Session = Depends(get_db)
 ):
     """Rename a chat session"""
-    # Find the session
-    session = db.query(ChatSession).filter(
-        ChatSession.id == session_id,
-        ChatSession.user_id == user_id
-    ).first()
-    
-    if not session:
+    try:
+        # Convert string UUIDs to proper UUID objects
+        try:
+            session_uuid = UUID(session_id)
+            user_uuid = UUID(user_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid UUID format"
+            )
+        
+        print(f"DEBUG: Renaming session {session_id} for user {user_id}")
+        print(f"DEBUG: New title: {rename_data.new_title}")
+        
+        # Find the session
+        session = db.query(ChatSession).filter(
+            ChatSession.id == session_uuid,
+            ChatSession.user_id == user_uuid
+        ).first()
+        
+        if not session:
+            print(f"DEBUG: Session not found - session_id={session_id}, user_id={user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied"
+            )
+        
+        # Update the title using the schema
+        current_time = datetime.utcnow()
+        session.title = rename_data.new_title
+        session.updated_at = current_time
+        
+        # Update user activity
+        user = db.query(User).filter(User.id == user_uuid).first()
+        if user:
+            user.last_activity = current_time
+        
+        db.commit()
+        db.refresh(session)
+        
+        print(f"DEBUG: Session {session_id} renamed to '{rename_data.new_title}' successfully")
+        return session
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Error renaming session {session_id}: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rename session: {str(e)}"
         )
-
-    # Update the title using the schema
-    current_time = datetime.utcnow()
-    session.title = rename_data.new_title  # Access via schema
-    session.updated_at = current_time
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if user:
-        user.last_activity = current_time
-    
-    db.commit()
-    db.refresh(session)
-    
-    return session
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chat_session(
@@ -94,27 +123,65 @@ async def delete_chat_session(
     db: Session = Depends(get_db)
 ):
     """Delete a chat session and all its messages"""
-    # Find the session
-    session = db.query(ChatSession).filter(
-        ChatSession.id == session_id,
-        ChatSession.user_id == user_id
-    ).first()
+    try:
+        try:
+            session_uuid = UUID(session_id)
+            user_uuid = UUID(user_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid UUID format"
+            )
+        # Find the session
+        session = db.query(ChatSession).filter(
+            ChatSession.id == session_uuid,
+            ChatSession.user_id == user_uuid
+        ).first()
 
-    if not session:
+        if not session:
+            # Log for debugging
+            print(f"Session not found: session_id={session_id}, user_id={user_id}")
+            
+            # Check if session exists at all
+            session_exists = db.query(ChatSession).filter(ChatSession.id == session_uuid).first()
+            if not session_exists:
+                print(f"Session {session_id} does not exist in database")
+            else:
+                print(f"Session {session_id} exists but belongs to different user")
+            
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied"
+            )
+
+        print(f"Deleting session: {session_id} for user: {user_id}")
+            
+        # Update user activity
+        user = db.query(User).filter(User.id == user_uuid).first()
+        if user:
+            user.last_activity = datetime.utcnow()
+
+        # Delete the session (messages will be deleted due to cascade)
+        db.delete(session)
+            
+        # Commit the transaction
+        db.commit()
+            
+        print(f"Session {session_id} successfully deleted")
+        return None
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        db.rollback()
+        raise
+    except Exception as e:
+        # Rollback on any other error
+        db.rollback()
+        print(f"Error deleting session {session_id}: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete session: {str(e)}"
         )
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if user:
-        user.last_activity = datetime.utcnow()
-
-    # Delete the session (messages will be deleted due to cascade)
-    db.delete(session)
-    db.commit()
-
-    return None
 
 @router.get("/user/{user_id}", response_model=List[ChatSessionResponse])
 async def get_user_sessions(

@@ -163,7 +163,7 @@ const ChatSessionsSidebar = ({
     try {
       const userId = getUserId();
       if (!userId) return;
-      const response = await fetch(`http://localhost:8000/sessions/${sessionId}/rename?user_id=${userId}`, {
+      const response = await fetch(`http://localhost:8000/sessions/${sessionId}/rename`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ new_title: newTitle, user_id: userId }),
