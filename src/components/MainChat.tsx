@@ -92,11 +92,21 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   // Create a new session
   const createNewSession = async (): Promise<string | null> => {
     try {
+      const userId = localStorage.getItem("user_id");
       const token = localStorage.getItem("access_token");
 
-      if (!token) {
+      if (!userId || !token) {
         throw new Error("Authentication credentials missing");
       }
+
+      console.log('Creating session for user:', userId); // Debug log
+
+      const requestBody = {
+        user_id: userId,
+        title: null
+      };
+
+      console.log('Session creation request body:', requestBody); // Debug log
 
       const response = await fetch(`http://localhost:8000/sessions/`, {
         method: "POST",
@@ -104,21 +114,20 @@ const MainChat = ({ userResponses }: MainChatProps) => {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          title: null,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('Session creation error:', errorData); // Debug log
         throw new Error(
-          `HTTP ${response.status}: ${
-            errorData.detail || "Failed to create session"
+          `HTTP ${response.status}: ${errorData.detail || "Failed to create session"
           }`
         );
       }
 
       const newSession = await response.json();
+      console.log('New session created successfully:', newSession); // Debug log
       return newSession.id;
     } catch (error) {
       console.error("Error creating session:", error);
@@ -126,6 +135,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       return null;
     }
   };
+
 
   const sendToBackend = async (text?: string, audioFile?: Blob) => {
     setIsTyping(true);
@@ -480,9 +490,8 @@ const MainChat = ({ userResponses }: MainChatProps) => {
                   </h1>
                   <div className="flex items-center space-x-2">
                     <div
-                      className={`w-2.5 h-2.5 rounded-full shadow-sm ${
-                        llmMode === "online" ? "bg-green-500" : "bg-red-500"
-                      }`}
+                      className={`w-2.5 h-2.5 rounded-full shadow-sm ${llmMode === "online" ? "bg-green-500" : "bg-red-500"
+                        }`}
                     ></div>
                     <span className="text-sm text-muted-foreground font-medium">
                       {llmMode === "online" ? "Online" : "Offline"}

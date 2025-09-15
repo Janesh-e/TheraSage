@@ -116,7 +116,7 @@ const ChatSessionsSidebar = ({
       }
 
       const data = await response.json();
-      const transformedSessions = Array.isArray(data) 
+      const transformedSessions = Array.isArray(data)
         ? data.map(transformSessionData)
         : [];
       setSessions(transformedSessions);
@@ -174,7 +174,7 @@ const ChatSessionsSidebar = ({
       }
 
       const updatedSession = await response.json();
-      
+
       setSessions((prev) =>
         prev.map((session) =>
           session.id === sessionId
@@ -215,7 +215,7 @@ const ChatSessionsSidebar = ({
       }
 
       setSessions((prev) => prev.filter((session) => session.id !== sessionId));
-      
+
       // If we deleted the current session, trigger new session creation
       if (currentSessionId === sessionId) {
         onNewSession();
@@ -229,42 +229,59 @@ const ChatSessionsSidebar = ({
   const handleNewSession = async () => {
     try {
       const userId = localStorage.getItem('user_id');
-    console.log('Creating new session for user:', userId); // Debug log
-    
-    const response = await fetch(`http://localhost:8000/sessions/`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ 
+      const token = localStorage.getItem('access_token');
+
+      // Add validation
+      if (!userId) {
+        setError('User ID not found. Please log in again.');
+        return;
+      }
+
+      if (!token) {
+        setError('Authentication token not found. Please log in again.');
+        return;
+      }
+
+      console.log('Creating new session for user:', userId); // Debug log
+
+      const requestBody = {
         user_id: userId,
-        title: null
-      }),
-    });
+        title: null // Can be null as it's optional
+      };
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Server error:', errorData); // Debug log
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+      console.log('Request body:', requestBody); // Debug log
 
-    const newSession = await response.json();
-    console.log('New session created:', newSession); // Debug log
+      const response = await fetch(`http://localhost:8000/sessions/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(requestBody),
+      });
 
-     // Transform the new session data
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Server error:', errorData); // Debug log
+        throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Failed to create session'}`);
+      }
+
+      const newSession = await response.json();
+      console.log('New session created:', newSession); // Debug log
+
+      // Transform the new session data
       const transformedNewSession = transformSessionData(newSession);
-      
+
       // Add new session to the top of the list
       setSessions((prev) => [transformedNewSession, ...prev]);
-    
-    // Select the new session
-    console.log('Selecting new session:', newSession.id); // Debug log
-    onSessionSelect(newSession.id);
+
+      // Select the new session
+      console.log('Selecting new session:', newSession.id); // Debug log
+      onSessionSelect(newSession.id);
     } catch (error) {
       console.error('Error creating new session:', error);
-      setError('Failed to create new session');
+      setError(`Failed to create new session: ${error.message}`);
     }
   };
 
-    const handleSessionSelect = (sessionId: string) => {
+  const handleSessionSelect = (sessionId: string) => {
     // Validate UUID format before selecting
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(sessionId)) {
@@ -272,7 +289,7 @@ const ChatSessionsSidebar = ({
       setError('Invalid session ID');
       return;
     }
-    
+
     onSessionSelect(sessionId);
   };
 
@@ -312,9 +329,9 @@ const ChatSessionsSidebar = ({
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center">
             <div className="text-sm text-red-600 mb-2">{error}</div>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setError(null);
                 loadSessions();

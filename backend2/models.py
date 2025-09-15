@@ -126,7 +126,7 @@ class User(Base):
     crisis_alerts = relationship("CrisisAlert", back_populates="user")
     therapist_sessions = relationship("TherapistSession", back_populates="user")
     created_communities = relationship("Community", back_populates="creator")
-    community_memberships = relationship("CommunityMembership", cascade="all, delete-orphan")
+    community_memberships = relationship("CommunityMembership", back_populates="user", cascade="all, delete-orphan", overlaps="user")
     community_posts = relationship("CommunityPost", back_populates="author")
     comments = relationship("Comment", back_populates="author")
     user_matches = relationship("UserMatch", foreign_keys="UserMatch.user_id", back_populates="user")
@@ -417,7 +417,7 @@ class CommunityMembership(Base):
     last_activity = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
-    user = relationship("User")
+    user = relationship("User", back_populates="community_memberships", overlaps="community_memberships")
     community = relationship("Community", back_populates="memberships")
     
     __table_args__ = (

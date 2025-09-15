@@ -20,39 +20,57 @@ async def create_chat_session(
     db: Session = Depends(get_db)
 ):
     """Create a new chat session for a user"""
-    # Verify user exists
-    user_id = session_data.user_id
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+    try:
+        # Debug logging
+        print(f"DEBUG: Creating session for user_id: {session_data.user_id}")
+        print(f"DEBUG: Session data: {session_data}")
+        
+        # Verify user exists
+        user_id = session_data.user_id
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            print(f"DEBUG: User not found with ID: {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User not found with ID: {user_id}"
+            )
+
+        # Get the next session number for this user
+        last_session = db.query(ChatSession).filter(
+            ChatSession.user_id == user_id
+        ).order_by(ChatSession.session_number.desc()).first()
+
+        next_session_number = (last_session.session_number + 1) if last_session else 1
+
+        # Create new session
+        new_session = ChatSession(
+            user_id=user_id,
+            title=session_data.title or f"Chat Session {next_session_number}",
+            session_number=next_session_number,
+            current_risk_level=RiskLevel.LOW,
+            total_messages=0
         )
 
-    # Get the next session number for this user
-    last_session = db.query(ChatSession).filter(
-        ChatSession.user_id == user_id
-    ).order_by(ChatSession.session_number.desc()).first()
+        db.add(new_session)
+        db.commit()
+        db.refresh(new_session)
 
-    next_session_number = (last_session.session_number + 1) if last_session else 1
+        user.last_activity = datetime.utcnow()
+        db.commit()
 
-    # Create new session
-    new_session = ChatSession(
-        user_id=user_id,
-        title=session_data.title or f"Chat Session {next_session_number}",
-        session_number=next_session_number,
-        current_risk_level=RiskLevel.LOW,
-        total_messages=0
-    )
-
-    db.add(new_session)
-    db.commit()
-    db.refresh(new_session)
-
-    user.last_activity = datetime.utcnow()
-    db.commit()
-
-    return new_session
+        print(f"DEBUG: Session created successfully with ID: {new_session.id}")
+        return new_session
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"DEBUG: Error creating session: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create session: {str(e)}"
+        )
 
 @router.put("/{session_id}/rename", response_model=ChatSessionResponse)
 async def rename_chat_session(
