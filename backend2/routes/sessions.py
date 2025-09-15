@@ -59,7 +59,23 @@ async def create_chat_session(
         db.commit()
 
         print(f"DEBUG: Session created successfully with ID: {new_session.id}")
-        return new_session
+        
+        # Convert UUID fields to strings for JSON serialization
+        response_data = ChatSessionResponse(
+            id=str(new_session.id),  # Convert UUID to string
+            title=new_session.title,
+            session_number=new_session.session_number,
+            current_risk_level=new_session.current_risk_level.value,
+            is_active=new_session.is_active,
+            created_at=new_session.created_at,
+            updated_at=new_session.updated_at,
+            last_message_at=new_session.last_message_at,
+            total_messages=new_session.total_messages,
+            conversation_summary=new_session.conversation_summary,
+            risk_score=new_session.risk_score
+        )
+        
+        return response_data
         
     except HTTPException:
         db.rollback()
@@ -121,7 +137,23 @@ async def rename_chat_session(
         db.refresh(session)
         
         print(f"DEBUG: Session {session_id} renamed to '{rename_data.new_title}' successfully")
-        return session
+        
+        # Convert to response format
+        response_data = ChatSessionResponse(
+            id=str(session.id),
+            title=session.title,
+            session_number=session.session_number,
+            current_risk_level=session.current_risk_level.value,
+            is_active=session.is_active,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            last_message_at=session.last_message_at,
+            total_messages=session.total_messages,
+            conversation_summary=session.conversation_summary,
+            risk_score=session.risk_score
+        )
+        
+        return response_data
         
     except HTTPException:
         db.rollback()
@@ -235,7 +267,24 @@ async def get_user_sessions(
         ChatSession.last_message_at.desc()
     ).offset(skip).limit(limit).all()
 
-    return sessions
+    # Convert each session to response format with string IDs
+    response_sessions = []
+    for session in sessions:
+        response_sessions.append(ChatSessionResponse(
+            id=str(session.id),
+            title=session.title,
+            session_number=session.session_number,
+            current_risk_level=session.current_risk_level.value,
+            is_active=session.is_active,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            last_message_at=session.last_message_at,
+            total_messages=session.total_messages,
+            conversation_summary=session.conversation_summary,
+            risk_score=session.risk_score
+        ))
+
+    return response_sessions
 
 @router.get("/{session_id}", response_model=ChatSessionResponse)
 async def get_chat_session(
@@ -261,7 +310,22 @@ async def get_chat_session(
         user.last_activity = datetime.utcnow()
         db.commit()
 
-    return session
+    # Convert to response format
+    response_data = ChatSessionResponse(
+        id=str(session.id),
+        title=session.title,
+        session_number=session.session_number,
+        current_risk_level=session.current_risk_level.value,
+        is_active=session.is_active,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+        last_message_at=session.last_message_at,
+        total_messages=session.total_messages,
+        conversation_summary=session.conversation_summary,
+        risk_score=session.risk_score
+    )
+
+    return response_data
 
 @router.put("/{session_id}/risk")
 async def update_session_risk(

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+from uuid import UUID
 
 # Pydantic models
 class UserCreate(BaseModel):
@@ -18,7 +19,7 @@ class UserResponse(BaseModel):
     college_name: str
     is_active: bool
     created_at: datetime
-    last_login: Optional[datetime]
+    last_login: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -67,8 +68,8 @@ class ChatMessageResponse(BaseModel):
     role: str
     message_order: int
     created_at: datetime
-    sentiment_score: Optional[float]
-    risk_indicators: Optional[Dict[str, Any]]
+    sentiment_score: Optional[float] = None
+    risk_indicators: Optional[Dict[str, Any]] = None
     
     class Config:
         from_attributes = True
