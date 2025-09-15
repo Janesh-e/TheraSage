@@ -4,6 +4,12 @@ Script to convert UUID columns to SQLite-compatible string columns
 """
 
 import re
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+MODELS_PATH = os.getenv("MODELS_PATH")
 
 def convert_uuid_references(file_path):
     with open(file_path, 'r') as f:
