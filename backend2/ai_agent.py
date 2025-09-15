@@ -1,10 +1,11 @@
 import os
 import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, TypedDict, Annotated
 from sqlalchemy.orm import Session
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langgraph.graph.message import add_messages
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
@@ -32,6 +33,20 @@ class ConversationAnalysis(BaseModel):
     suggested_interventions: List[str]
     cbt_recommendation: bool
     requires_human_escalation: bool
+
+class CustomConversationState(TypedDict):
+    messages: Annotated[list, add_messages]
+    user_id: str
+    session_id: str
+    analysis: dict
+    analysis_raw: str
+    analysis_path: str
+    context_depth: str
+    message_count: int
+    repetitive_patterns: list
+    routing_decision: str
+    intervention_type: str
+    crisis_result: dict
 
 class OpenRouterClient:
     """Custom OpenRouter client for DeepSeek API calls"""
@@ -226,12 +241,13 @@ class EmotionalSupportAgent:
 
     def _create_conversation_workflow(self) -> StateGraph:
         """Create simplified LangGraph workflow for conversation handling"""
-        workflow = StateGraph(MessagesState)
+        workflow = StateGraph(CustomConversationState)
 
         # Simplified workflow: analysis -> context -> routing -> response
         workflow.add_node("comprehensive_analysis", self._comprehensive_analysis)
         workflow.add_node("check_context_depth", self._check_context_depth)
         workflow.add_node("detect_patterns", self._detect_repetitive_patterns)
+        workflow.add_node("route_decision", self._intelligent_routing)
         workflow.add_node("generate_contextual_response", self._generate_contextual_response)
         workflow.add_node("provide_cbt_intervention", self._provide_cbt_intervention)
         workflow.add_node("handle_crisis_escalation", self._handle_crisis_escalation)
@@ -240,11 +256,12 @@ class EmotionalSupportAgent:
         workflow.add_edge(START, "comprehensive_analysis")
         workflow.add_edge("comprehensive_analysis", "check_context_depth")
         workflow.add_edge("check_context_depth", "detect_patterns")
+        workflow.add_edge("detect_patterns", "route_decision")
 
         # Smart routing based on analysis
         workflow.add_conditional_edges(
-            "detect_patterns",
-            self._intelligent_routing,
+            "route_decision",
+            lambda state: state.get("routing_decision", "respond"),
             {
                 "crisis": "handle_crisis_escalation",
                 "cbt": "provide_cbt_intervention", 
@@ -258,7 +275,7 @@ class EmotionalSupportAgent:
 
         return workflow.compile(checkpointer=self.memory)
 
-    async def _comprehensive_analysis(self, state: MessagesState) -> MessagesState:
+    async def _comprehensive_analysis(self, state: CustomConversationState) -> CustomConversationState:
         """Enhanced analysis that includes crisis assessment and cognitive patterns"""
         user_message = state["messages"][-1].content
         user_id = state.get("user_id")
@@ -294,10 +311,11 @@ Focus on detecting:
 """
         analysis_response = await self.llm.ainvoke([HumanMessage(content=analysis_prompt)], temperature=0.3, max_tokens=300)
         try:
-            state["analysis_raw"] = analysis_response
+            state["analysis_raw"] = analysis_response.content
             analysis_data = json.loads(analysis_response.content)
             state["analysis"] = analysis_data
             state["analysis_path"] = "try"
+            return state
         except Exception as e:
             print(f"Analysis error: {e}")
             state["analysis_path"] = "except"
@@ -313,10 +331,9 @@ Focus on detecting:
                 "conversation_needs": "support",
                 "response_tone": "encouraging"
             }
+            return state
 
-        return state
-
-    async def _check_context_depth(self, state: MessagesState) -> MessagesState:
+    async def _check_context_depth(self, state: CustomConversationState) -> CustomConversationState:
         """Evaluate conversation context and flow"""
         session_id = state.get("session_id")
         
@@ -339,7 +356,7 @@ Focus on detecting:
 
         return state
 
-    async def _detect_repetitive_patterns(self, state: MessagesState) -> MessagesState:
+    async def _detect_repetitive_patterns(self, state: CustomConversationState) -> CustomConversationState:
         """Identify patterns but keep it simple"""
         user_id = state.get("user_id")
         
@@ -365,28 +382,42 @@ Focus on detecting:
         state["repetitive_patterns"] = patterns_found
         return state
 
-    def _intelligent_routing(self, state: MessagesState) -> str:
+    def _intelligent_routing(self, state: CustomConversationState) -> CustomConversationState:
         """Smart routing based on comprehensive analysis"""
+        print(f"🔍 Route Decision Debug - Full State Keys: {list(state.keys())}")
         analysis = state.get("analysis", {})
-        
+        if not analysis and state.get("analysis_raw"):
+            try:
+                analysis = json.loads(state.get("analysis_raw"))
+                # persist rehydrated analysis back into state so downstream nodes see it
+                state["analysis"] = analysis
+                state["analysis_path"] = state.get("analysis_path", "rehydrated")
+            except Exception:
+                analysis = {}
+
         risk_score = analysis.get("risk_score", 0)
         risk_factors = analysis.get("risk_factors", [])
         cognitive_distortions = analysis.get("cognitive_distortions", [])
         immediate_action = analysis.get("immediate_action_needed", False)
+
+        print(f"🔍 State during intelligent routing: {state.get('analysis', {})}")
         
         # Crisis path: high risk score OR immediate action needed OR risk factors present
-        if risk_score >= 7 or immediate_action or risk_factors:
-            return "crisis"
+        if risk_score >= 7 or immediate_action or (risk_factors and len(risk_factors) > 0):
+            routing_decision = "crisis"
         
         # CBT path: cognitive distortions detected
         elif cognitive_distortions and len(cognitive_distortions) > 0:
-            return "cbt"
+            routing_decision = "cbt"
         
         # Regular supportive response
         else:
-            return "respond"
+            routing_decision = "respond"
+        
+        state["routing_decision"] = routing_decision
+        return state
 
-    async def _generate_contextual_response(self, state: MessagesState) -> MessagesState:
+    async def _generate_contextual_response(self, state: CustomConversationState) -> CustomConversationState:
         """Generate contextual, varied responses using analysis data"""
         user_message = state["messages"][-1].content
         analysis = state.get("analysis", {})
@@ -481,7 +512,7 @@ Keep it natural, specific, and contextual. Maximum 60 words.
         state["intervention_type"] = "contextual_response"
         return state
 
-    async def _provide_cbt_intervention(self, state: MessagesState) -> MessagesState:
+    async def _provide_cbt_intervention(self, state: CustomConversationState) -> CustomConversationState:
         """Provide specific CBT intervention based on detected cognitive distortions"""
         user_message = state["messages"][-1].content
         analysis = state.get("analysis", {})
@@ -539,7 +570,7 @@ Specific to their concern. Be conversational but therapeutic. Maximum 70 words.
         state["intervention_type"] = "cbt_intervention"
         return state
 
-    async def _handle_crisis_escalation(self, state: MessagesState) -> MessagesState:
+    async def _handle_crisis_escalation(self, state: CustomConversationState) -> CustomConversationState:
         """Enhanced crisis handling with automatic therapist assignment"""
         
         analysis = state.get("analysis", {})
@@ -740,7 +771,16 @@ Can you tell me what you're experiencing at this moment?"""
         initial_state = {
             "messages": [HumanMessage(content=message)],
             "user_id": user_id,
-            "session_id": session_id
+            "session_id": session_id,
+            "analysis": {},
+            "analysis_raw": "",
+            "analysis_path": None,
+            "repetitive_patterns": [],
+            "context_depth": "shallow",
+            "message_count": 0,
+            "routing_decision": "",
+            "intervention_type": "contextual_response",
+            "crisis_result": {}
         }
 
         # Run through LangGraph workflow
