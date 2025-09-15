@@ -91,3 +91,61 @@ async def get_current_user(
             detail="User not found"
         )
     return user
+
+
+def authenticate_therapist(identifier: str, password: str, db: Session):
+    """Authenticate therapist with email or phone number"""
+    from models import Therapist  # Import here to avoid circular imports
+    
+    # Try to find therapist by email first
+    therapist = db.query(Therapist).filter(Therapist.email == identifier).first()
+    
+    # If not found by email, try by phone number
+    if not therapist:
+        therapist = db.query(Therapist).filter(Therapist.phone_number == identifier).first()
+    
+    if not therapist:
+        return False
+    
+    if not check_password_hash(therapist.password_hash, password):
+        return False
+    
+    return therapist
+
+async def get_current_therapist(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """Get current authenticated therapist"""
+    token = credentials.credentials
+    
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate therapist credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        user_type: str = payload.get("type")
+        
+        if user_id is None or user_type != "therapist":
+            raise credentials_exception
+    except jwt.PyJWTError:
+        raise credentials_exception
+    
+    # Import here to avoid circular imports
+    from models import Therapist
+    
+    therapist = db.query(Therapist).filter(Therapist.id == user_id).first()
+    if therapist is None:
+        raise credentials_exception
+    
+    if not therapist.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Therapist account is deactivated"
+        )
+    
+    return therapist

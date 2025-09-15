@@ -118,3 +118,20 @@ class CommentResponse(BaseModel):
     class Config:
         from_attributes = True
         orm_mode = True
+
+
+class TherapistResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    phone_number: str
+    role: str
+    college_name: str
+    is_active: bool
+    status: str
+    is_on_call: bool
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+        orm_mode = True
