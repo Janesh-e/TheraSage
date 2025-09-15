@@ -36,7 +36,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -46,11 +46,11 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   // Helper function to safely create Date objects
   const safeCreateDate = (date?: string | Date): Date => {
     if (!date) return new Date();
-    
+
     if (date instanceof Date) {
       return isNaN(date.getTime()) ? new Date() : date;
     }
-    
+
     try {
       const parsed = new Date(date);
       return isNaN(parsed.getTime()) ? new Date() : parsed;
@@ -92,34 +92,36 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   // Create a new session
   const createNewSession = async (): Promise<string | null> => {
     try {
-      const userId = localStorage.getItem('user_id');
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem("access_token");
 
-      if (!userId || !token) {
-        throw new Error('Authentication credentials missing');
+      if (!token) {
+        throw new Error("Authentication credentials missing");
       }
 
       const response = await fetch(`http://localhost:8000/sessions/`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          user_id: userId,
-          title: null
+          title: null,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Failed to create session'}`);
+        throw new Error(
+          `HTTP ${response.status}: ${
+            errorData.detail || "Failed to create session"
+          }`
+        );
       }
 
       const newSession = await response.json();
       return newSession.id;
     } catch (error) {
-      console.error('Error creating session:', error);
+      console.error("Error creating session:", error);
       setError(`Failed to create chat session: ${error.message}`);
       return null;
     }
@@ -128,10 +130,10 @@ const MainChat = ({ userResponses }: MainChatProps) => {
   const sendToBackend = async (text?: string, audioFile?: Blob) => {
     setIsTyping(true);
     const formData = new FormData();
-    const userId = localStorage.getItem('user_id') || 'anonymous';
+    const userId = localStorage.getItem("user_id") || "anonymous";
 
     formData.append("user_id", userId);
-    formData.append("session_id", currentSessionId || '');
+    formData.append("session_id", currentSessionId || "");
 
     if (text) {
       formData.append("content", text);
@@ -143,11 +145,11 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     }
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem("access_token");
       const response = await fetch("http://localhost:8000/messages/send", {
         method: "POST",
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
@@ -170,7 +172,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       if (newSessionId) {
         setCurrentSessionId(newSessionId);
       } else {
-        console.error('Failed to create session');
+        console.error("Failed to create session");
         return;
       }
     }
@@ -186,9 +188,14 @@ const MainChat = ({ userResponses }: MainChatProps) => {
 
     try {
       const response = await sendToBackend(currentInput);
+      console.log("Backend response:", response); // Debug log
       const botResponse = {
         type: "bot" as const,
-        content: response.ai_response || response.message || "I'm here to listen. 🌸",
+        content:
+          response.content ||
+          response.ai_response ||
+          response.message ||
+          "I'm here to listen. 🌸",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botResponse]);
@@ -215,7 +222,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       if (newSessionId) {
         setCurrentSessionId(newSessionId);
       } else {
-        console.error('Failed to create session');
+        console.error("Failed to create session");
         return;
       }
     }
@@ -234,13 +241,19 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       if (response.transcribed_text && response.transcribed_text.trim()) {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg === userMessage ? { ...msg, content: response.transcribed_text } : msg
+            msg === userMessage
+              ? { ...msg, content: response.transcribed_text }
+              : msg
           )
         );
       }
       const botResponse = {
         type: "bot" as const,
-        content: response.ai_response || response.message || "I heard you. Let me think. 🌸",
+        content:
+          response.content ||
+          response.ai_response ||
+          response.message ||
+          "I heard you. Let me think. 🌸",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botResponse]);
@@ -268,19 +281,23 @@ const MainChat = ({ userResponses }: MainChatProps) => {
 
   const loadSessionMessages = async (sessionId: string) => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/messages/session/${sessionId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `http://localhost:8000/messages/session/${sessionId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (response.ok) {
-        const data = await response.json();
-        if (data.messages && data.messages.length > 0) {
-          const formattedMessages = data.messages.map((msg: any) => ({
-            type: msg.sender_type === 'user' ? 'user' : 'bot',
+        const messages = await response.json();
+        console.log("Loaded messages:", messages); // Debug log
+        if (messages && messages.length > 0) {
+          const formattedMessages = messages.map((msg: any) => ({
+            type: msg.role === "user" ? "user" : "bot",
             content: msg.content,
             timestamp: safeCreateDate(msg.created_at),
           }));
@@ -294,7 +311,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
         initializeWelcomeMessage();
       }
     } catch (error) {
-      console.error('Error loading session messages:', error);
+      console.error("Error loading session messages:", error);
       initializeWelcomeMessage();
     }
   };
@@ -312,7 +329,7 @@ const MainChat = ({ userResponses }: MainChatProps) => {
       // Show welcome message for new session
       initializeWelcomeMessage();
     } else {
-      console.error('Failed to create new session');
+      console.error("Failed to create new session");
       // Fallback: clear current session and show welcome
       setCurrentSessionId(null);
       initializeWelcomeMessage();
@@ -337,11 +354,11 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     const initializeChat = async () => {
       try {
         // Validate authentication
-        const token = localStorage.getItem('access_token');
-        const userId = localStorage.getItem('user_id');
+        const token = localStorage.getItem("access_token");
+        const userId = localStorage.getItem("user_id");
 
         if (!token || !userId) {
-          setAuthError('Authentication required. Please log in again.');
+          setAuthError("Authentication required. Please log in again.");
           setIsLoading(false);
           return;
         }
@@ -366,8 +383,8 @@ const MainChat = ({ userResponses }: MainChatProps) => {
 
         setIsLoading(false);
       } catch (error) {
-        console.error('Initialization error:', error);
-        setError('Failed to initialize chat. Please refresh the page.');
+        console.error("Initialization error:", error);
+        setError("Failed to initialize chat. Please refresh the page.");
         setIsLoading(false);
       }
     };
@@ -385,10 +402,12 @@ const MainChat = ({ userResponses }: MainChatProps) => {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-red-600 mb-2">Authentication Error</h2>
+          <h2 className="text-xl font-semibold text-red-600 mb-2">
+            Authentication Error
+          </h2>
           <p className="text-gray-600">{authError}</p>
           <button
-            onClick={() => window.location.href = '/login'}
+            onClick={() => (window.location.href = "/login")}
             className="mt-4 px-4 py-2 bg-primary text-white rounded"
           >
             Go to Login

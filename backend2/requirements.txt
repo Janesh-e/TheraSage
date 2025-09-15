@@ -1,0 +1,46 @@
+# Core FastAPI and web framework dependencies
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Database dependencies
+sqlalchemy>=2.0.23
+alembic>=1.12.1
+
+# For SQLite (default - always included)
+# SQLite support is built into Python
+
+# For PostgreSQL (optional - uncomment if using PostgreSQL)
+# psycopg2-binary>=2.9.9
+
+# Authentication and security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.1.2
+
+# Environment and configuration
+python-dotenv>=1.0.0
+
+# Data validation and serialization
+pydantic>=2.7.4
+pydantic-settings>=2.0.3
+
+# HTTP client for external API calls
+httpx>=0.25.2
+requests>=2.32.2
+
+# Audio processing and AI
+openai>=1.99.9
+whisper>=1.1.10
+torch>=2.1.1
+torchaudio>=2.1.1
+
+# Utilities
+python-dateutil>=2.8.2
+typing-extensions>=4.12.0
+
+# CORS and middleware
+starlette==0.27.0
+
+# Logging and monitoring
+structlog==23.2.0

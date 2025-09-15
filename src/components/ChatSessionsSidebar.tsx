@@ -45,10 +45,8 @@ const ChatSessionsSidebar = ({
 }: ChatSessionsSidebarProps) => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-
   const [error, setError] = useState<string | null>(null);
 
   // Load sessions when component mounts
@@ -57,15 +55,15 @@ const ChatSessionsSidebar = ({
   }, []);
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem("access_token");
     return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
     };
   };
 
   const getUserId = () => {
-    return localStorage.getItem('user_id');
+    return localStorage.getItem("user_id");
   };
 
   // Helper function to safely parse dates
@@ -83,9 +81,15 @@ const ChatSessionsSidebar = ({
   const transformSessionData = (backendSession: any): ChatSession => {
     return {
       id: backendSession.id,
-      title: backendSession.title || `Chat Session ${backendSession.session_number || ''}`,
+      title:
+        backendSession.title ||
+        `Chat Session ${backendSession.session_number || ""}`,
       lastMessage: "Continue your conversation...", // Default since backend doesn't provide this
-      timestamp: safeParseDate(backendSession.last_message_at || backendSession.updated_at || backendSession.created_at),
+      timestamp: safeParseDate(
+        backendSession.last_message_at ||
+          backendSession.updated_at ||
+          backendSession.created_at
+      ),
       messageCount: backendSession.total_messages || 0,
       // Keep original properties for reference
       last_message_at: backendSession.last_message_at,
@@ -102,27 +106,30 @@ const ChatSessionsSidebar = ({
 
       const userId = getUserId();
       if (!userId) {
-        setError('User ID not found. Please log in again.');
+        setError("User ID not found. Please log in again.");
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/sessions/user/${userId}?limit=50&skip=0&include_archived=false`, {
-        method: 'GET',
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch(
+        `http://localhost:8000/sessions/user/sessions?limit=50&skip=0&include_archived=false`,
+        {
+          method: "GET",
+          headers: getAuthHeaders(),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      const transformedSessions = Array.isArray(data) 
+      const transformedSessions = Array.isArray(data)
         ? data.map(transformSessionData)
         : [];
       setSessions(transformedSessions);
     } catch (error) {
-      console.error('Error loading sessions:', error);
-      setError('Failed to load chat sessions');
+      console.error("Error loading sessions:", error);
+      setError("Failed to load chat sessions");
     } finally {
       setIsLoading(false);
     }
@@ -143,7 +150,7 @@ const ChatSessionsSidebar = ({
       if (diffInHours < 48) return "Yesterday";
       return date.toLocaleDateString();
     } catch (error) {
-      console.error('Error formatting timestamp:', error);
+      console.error("Error formatting timestamp:", error);
       return "Recently";
     }
   };
@@ -161,20 +168,22 @@ const ChatSessionsSidebar = ({
     }
 
     try {
-      const userId = getUserId();
-      if (!userId) return;
-      const response = await fetch(`http://localhost:8000/sessions/${sessionId}/rename`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ new_title: newTitle, user_id: userId }),
-      });
+      // Fixed: Remove the query parameter and user_id from body
+      const response = await fetch(
+        `http://localhost:8000/sessions/${sessionId}/rename`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ new_title: newTitle }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const updatedSession = await response.json();
-      
+
       setSessions((prev) =>
         prev.map((session) =>
           session.id === sessionId
@@ -183,8 +192,8 @@ const ChatSessionsSidebar = ({
         )
       );
     } catch (error) {
-      console.error('Error renaming session:', error);
-      setError('Failed to rename session');
+      console.error("Error renaming session:", error);
+      setError("Failed to rename session");
     }
 
     setEditingId(null);
@@ -197,82 +206,83 @@ const ChatSessionsSidebar = ({
   };
 
   const handleDelete = async (sessionId: string) => {
-    if (!window.confirm('Are you sure you want to delete this chat session? This action cannot be undone.')) {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this chat session? This action cannot be undone."
+      )
+    ) {
       return;
     }
 
     try {
-      const userId = getUserId();
-      if (!userId) return;
-
-      const response = await fetch(`http://localhost:8000/sessions/${sessionId}?user_id=${userId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch(
+        `http://localhost:8000/sessions/${sessionId}`,
+        {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       setSessions((prev) => prev.filter((session) => session.id !== sessionId));
-      
+
       // If we deleted the current session, trigger new session creation
       if (currentSessionId === sessionId) {
         onNewSession();
       }
     } catch (error) {
-      console.error('Error deleting session:', error);
-      setError('Failed to delete session');
+      console.error("Error deleting session:", error);
+      setError("Failed to delete session");
     }
   };
 
   const handleNewSession = async () => {
     try {
-      const userId = localStorage.getItem('user_id');
-    console.log('Creating new session for user:', userId); // Debug log
-    
-    const response = await fetch(`http://localhost:8000/sessions/`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ 
-        user_id: userId,
-        title: null
-      }),
-    });
+      // Fixed: Simplified request body
+      const response = await fetch(`http://localhost:8000/sessions/`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          title: null,
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Server error:', errorData); // Debug log
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("Server error:", errorData);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-    const newSession = await response.json();
-    console.log('New session created:', newSession); // Debug log
+      const newSession = await response.json();
+      console.log("New session created:", newSession);
 
-     // Transform the new session data
+      // Transform the new session data
       const transformedNewSession = transformSessionData(newSession);
-      
+
       // Add new session to the top of the list
       setSessions((prev) => [transformedNewSession, ...prev]);
-    
-    // Select the new session
-    console.log('Selecting new session:', newSession.id); // Debug log
-    onSessionSelect(newSession.id);
+
+      // Select the new session
+      onSessionSelect(newSession.id);
     } catch (error) {
-      console.error('Error creating new session:', error);
-      setError('Failed to create new session');
+      console.error("Error creating new session:", error);
+      setError("Failed to create new session");
     }
   };
 
-    const handleSessionSelect = (sessionId: string) => {
+  const handleSessionSelect = (sessionId: string) => {
     // Validate UUID format before selecting
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(sessionId)) {
-      console.error('Invalid session ID format:', sessionId);
-      setError('Invalid session ID');
+      console.error("Invalid session ID format:", sessionId);
+      setError("Invalid session ID");
       return;
     }
-    
+
     onSessionSelect(sessionId);
   };
 
@@ -290,7 +300,9 @@ const ChatSessionsSidebar = ({
           </Button>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-sm text-muted-foreground">Loading sessions...</div>
+          <div className="text-sm text-muted-foreground">
+            Loading sessions...
+          </div>
         </div>
       </div>
     );
@@ -312,9 +324,9 @@ const ChatSessionsSidebar = ({
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center">
             <div className="text-sm text-red-600 mb-2">{error}</div>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setError(null);
                 loadSessions();
@@ -347,8 +359,12 @@ const ChatSessionsSidebar = ({
           {sessions.length === 0 ? (
             <div className="text-center py-8">
               <MessageSquare className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No chat sessions yet</p>
-              <p className="text-xs text-muted-foreground">Start a new conversation!</p>
+              <p className="text-sm text-muted-foreground">
+                No chat sessions yet
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Start a new conversation!
+              </p>
             </div>
           ) : (
             sessions.map((session) => {

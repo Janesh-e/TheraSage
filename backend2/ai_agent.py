@@ -745,7 +745,24 @@ Can you tell me what you're experiencing at this moment?"""
 
         # Run through LangGraph workflow
         config = {"configurable": {"thread_id": f"{user_id}_{session_id}"}}
-        result = await self.workflow.ainvoke(initial_state, config=config)
+        try:
+            result = await self.workflow.ainvoke(initial_state, config=config)
+        except Exception as workflow_error:
+            print(f"LangGraph workflow error: {workflow_error}")
+            # Create a simple fallback response
+            from langchain_core.messages import AIMessage
+            result = {
+                "messages": [AIMessage(content="I'm here to listen and support you. Thank you for sharing with me. How are you feeling right now? 💜")],
+                "analysis": {
+                    "emotional_state": "neutral",
+                    "urgency_level": 3,
+                    "main_concerns": [],
+                    "cognitive_distortions": [],
+                    "risk_factors": []
+                },
+                "crisis_result": {},
+                "repetitive_patterns": []
+            }
 
         # Extract AI response and analysis
         ai_message = result["messages"][-1]

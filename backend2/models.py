@@ -1,7 +1,7 @@
 # models.py
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, 
-    ForeignKey, UUID, Float, Enum as SQLEnum, Index,
+    ForeignKey, Float, Enum as SQLEnum, Index,
     UniqueConstraint, CheckConstraint, JSON
 )
 from sqlalchemy.orm import relationship
@@ -10,8 +10,24 @@ from datetime import datetime, timezone
 import uuid
 import enum
 from typing import Optional
+import os
 
 from db import Base
+
+# Check if we're using SQLite to handle UUID differently
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./emotional_support_db.db")
+USE_SQLITE = "sqlite" in DATABASE_URL
+
+# UUID column type that works with both SQLite and PostgreSQL
+def get_uuid_column():
+    if USE_SQLITE:
+        return String(36)  # Store UUID as string in SQLite
+    else:
+        from sqlalchemy import UUID
+        return UUID(as_uuid=True)
+
+def generate_uuid():
+    return str(uuid.uuid4()) if USE_SQLITE else uuid.uuid4()
 
 # Enums for better data integrity
 class RiskLevel(enum.Enum):
@@ -74,7 +90,7 @@ class User(Base):
     __tablename__ = "users"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
     
     # User credentials and basic info
     name = Column(String(100), nullable=False)
@@ -131,8 +147,8 @@ class ChatSession(Base):
     """
     __tablename__ = "chat_sessions"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Session metadata
     title = Column(String(200), nullable=True)  # User can name their sessions
@@ -172,8 +188,8 @@ class ChatMessage(Base):
     """
     __tablename__ = "chat_messages"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    session_id = Column(get_uuid_column(), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Message content (encrypted for privacy)
     content = Column(Text, nullable=False)  # Encrypted message content
@@ -213,9 +229,9 @@ class CrisisAlert(Base):
     """
     __tablename__ = "crisis_alerts"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(get_uuid_column(), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True)
     
     # Crisis details
     crisis_type = Column(SQLEnum(CrisisType), nullable=False, index=True)
@@ -232,7 +248,7 @@ class CrisisAlert(Base):
     escalated_to_human = Column(Boolean, default=False, index=True)
     auto_resources_sent = Column(Boolean, default=False)
 
-    assigned_therapist_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Therapist handling this crisis
+    assigned_therapist_id = Column(get_uuid_column(), nullable=True, index=True)  # Therapist handling this crisis
     
     # Response tracking
     response_actions = Column(JSON, nullable=True)  # Actions taken (resources sent, session scheduled, etc.)
@@ -263,7 +279,7 @@ class Therapist(Base):
     __tablename__ = "therapists"
 
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
     
     # Basic info
     name = Column(String(100), nullable=False)
@@ -293,9 +309,9 @@ class TherapistSession(Base):
     """
     __tablename__ = "therapist_sessions"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    crisis_alert_id = Column(UUID(as_uuid=True), ForeignKey("crisis_alerts.id", ondelete="SET NULL"), nullable=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    crisis_alert_id = Column(get_uuid_column(), ForeignKey("crisis_alerts.id", ondelete="SET NULL"), nullable=True)
     
     # Session details
     session_type = Column(String(50), nullable=False, index=True)  # crisis, regular, follow_up, group
@@ -341,7 +357,7 @@ class Community(Base):
     __tablename__ = "communities"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
     
     # Community basic info
     title = Column(String(200), nullable=False, index=True)
@@ -349,7 +365,7 @@ class Community(Base):
     rules = Column(Text, nullable=True)  # Community-specific rules
     
     # Creator and moderation
-    creator_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    creator_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     moderator_ids = Column(JSON, default=list)  # List of user IDs who can moderate
     
     # College affiliation (communities are college-specific)
@@ -388,9 +404,9 @@ class CommunityMembership(Base):
     """
     __tablename__ = "community_memberships"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    community_id = Column(UUID(as_uuid=True), ForeignKey("communities.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    community_id = Column(get_uuid_column(), ForeignKey("communities.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Membership status
     is_moderator = Column(Boolean, default=False)
@@ -415,11 +431,11 @@ class ModerationAction(Base):
     """
     __tablename__ = "moderation_actions"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
     
     # What was moderated
     content_type = Column(String(20), nullable=False, index=True)  # 'post' or 'comment'
-    content_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # ID of post or comment
+    content_id = Column(get_uuid_column(), nullable=False, index=True)  # ID of post or comment
     
     # Moderation details
     action_type = Column(String(50), nullable=False, index=True)  # 'auto_removed', 'flagged', 'approved', 'rejected'
@@ -434,9 +450,9 @@ class ModerationAction(Base):
     original_content = Column(Text, nullable=False)  # Copy of the moderated content
     
     # Moderation context
-    moderator_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Null if automated
-    community_id = Column(UUID(as_uuid=True), ForeignKey("communities.id", ondelete="SET NULL"), nullable=True)
-    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    moderator_id = Column(get_uuid_column(), nullable=True, index=True)  # Null if automated
+    community_id = Column(get_uuid_column(), ForeignKey("communities.id", ondelete="SET NULL"), nullable=True)
+    author_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Appeal system
     can_appeal = Column(Boolean, default=True)
@@ -463,9 +479,9 @@ class CommunityPost(Base):
     """
     __tablename__ = "community_posts"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    community_id = Column(UUID(as_uuid=True), ForeignKey("communities.id", ondelete="CASCADE"), nullable=True, index=True)
-    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    community_id = Column(get_uuid_column(), ForeignKey("communities.id", ondelete="CASCADE"), nullable=True, index=True)
+    author_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Post content
     title = Column(String(300), nullable=False)
@@ -520,10 +536,10 @@ class Comment(Base):
     """
     __tablename__ = "comments"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    post_id = Column(UUID(as_uuid=True), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False, index=True)
-    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    parent_comment_id = Column(UUID(as_uuid=True), ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)  # For nested comments
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    post_id = Column(get_uuid_column(), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    parent_comment_id = Column(get_uuid_column(), ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)  # For nested comments
     
     # Content
     content = Column(Text, nullable=False)
@@ -555,9 +571,9 @@ class PostVote(Base):
     """
     __tablename__ = "post_votes"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    post_id = Column(UUID(as_uuid=True), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    post_id = Column(get_uuid_column(), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Vote type
     vote_type = Column(String(10), nullable=False)  # 'upvote' or 'downvote'
@@ -581,9 +597,9 @@ class CommentVote(Base):
     """
     __tablename__ = "comment_votes"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    comment_id = Column(UUID(as_uuid=True), ForeignKey("comments.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    comment_id = Column(get_uuid_column(), ForeignKey("comments.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Vote type
     vote_type = Column(String(10), nullable=False)  # 'upvote' or 'downvote'
@@ -609,9 +625,9 @@ class UserMatch(Base):
     """
     __tablename__ = "user_matches"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    matched_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    matched_user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Matching algorithm data
     compatibility_score = Column(Float, nullable=False)  # 0.0 to 1.0
@@ -656,8 +672,8 @@ class UserAnalytics(Base):
     """
     __tablename__ = "user_analytics"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(get_uuid_column(), primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(get_uuid_column(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Activity patterns
     total_sessions = Column(Integer, default=0)

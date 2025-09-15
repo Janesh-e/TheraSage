@@ -9,29 +9,41 @@ def add_summary_features():
     with engine.connect() as conn:
         # Add columns for better session context management
         try:
-            # Add session summary column if not exists
-            conn.execute(text("""
-                ALTER TABLE chat_sessions 
-                ADD COLUMN IF NOT EXISTS conversation_summary TEXT;
-            """))
+            # Check if columns exist before adding them (SQLite compatible)
             
-            # Add context metadata column for tracking conversation flow
-            conn.execute(text("""
-                ALTER TABLE chat_sessions 
-                ADD COLUMN IF NOT EXISTS context_metadata JSON DEFAULT '{}';
-            """))
+            # Check if conversation_summary column exists
+            result = conn.execute(text("PRAGMA table_info(chat_sessions)")).fetchall()
+            columns = [row[1] for row in result]
             
-            # Add response quality tracking
-            conn.execute(text("""
-                ALTER TABLE chat_messages 
-                ADD COLUMN IF NOT EXISTS response_quality_score FLOAT DEFAULT NULL;
-            """))
+            if 'conversation_summary' not in columns:
+                conn.execute(text("""
+                    ALTER TABLE chat_sessions 
+                    ADD COLUMN conversation_summary TEXT;
+                """))
             
-            # Add conversation flow tracking
-            conn.execute(text("""
-                ALTER TABLE chat_messages 
-                ADD COLUMN IF NOT EXISTS conversation_flow VARCHAR(50) DEFAULT NULL;
-            """))
+            # Add context metadata column for tracking conversation flow (SQLite uses TEXT for JSON)
+            if 'context_metadata' not in columns:
+                conn.execute(text("""
+                    ALTER TABLE chat_sessions 
+                    ADD COLUMN context_metadata TEXT DEFAULT '{}';
+                """))
+            
+            # Check if response_quality_score column exists in chat_messages
+            result = conn.execute(text("PRAGMA table_info(chat_messages)")).fetchall()
+            message_columns = [row[1] for row in result]
+            
+            if 'response_quality_score' not in message_columns:
+                conn.execute(text("""
+                    ALTER TABLE chat_messages 
+                    ADD COLUMN response_quality_score FLOAT DEFAULT NULL;
+                """))
+            
+            # Add conversation flow tracking (check if column exists first)
+            if 'conversation_flow' not in message_columns:
+                conn.execute(text("""
+                    ALTER TABLE chat_messages 
+                    ADD COLUMN conversation_flow VARCHAR(50) DEFAULT NULL;
+                """))
             
             # Add indexes for better performance
             conn.execute(text("""

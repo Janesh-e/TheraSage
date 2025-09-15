@@ -31,7 +31,7 @@ from models import (
 )
 
 # Import routes
-from routes import sessions, messages, auth, crisis, therapist_dashboard, therapist_session, community, user_matching, peer_messaging
+from routes import sessions, messages, auth, crisis, therapist_dashboard, therapist_session, community, user_matching, peer_messaging, llm_status
 
 # Import utility functions
 from stt_utils import transcribe_audio
@@ -86,6 +86,7 @@ app.add_middleware(
 app.include_router(sessions.router)
 app.include_router(messages.router)
 app.include_router(auth.router)
+app.include_router(llm_status.router)
 app.include_router(crisis.router, prefix="/api/v1")
 app.include_router(therapist_session.router, prefix="/api/v1")
 app.include_router(therapist_dashboard.router, prefix="/api/v1")

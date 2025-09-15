@@ -9,6 +9,7 @@ from schemas import ChatMessageResponse
 from ai_agent import process_ai_conversation
 from stt_utils import transcribe_audio
 from vad_utils import is_speech
+from authenticate_utils import get_current_user
 from uuid import uuid4
 import requests
 import os
@@ -22,41 +23,38 @@ UPLOAD_FOLDER = "temp_audio"
 
 @router.post("/send", response_model=ChatMessageResponse)
 async def send_message(
-    user_id: str = Form(...),
     session_id: str = Form(...),
-    text: Optional[str] = Form(None),
-    voice: Optional[UploadFile] = File(None),
+    content: Optional[str] = Form(None),
+    message_type: str = Form("text"),
+    audio_file: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Accepts either text (form field `text`) or a voice file (form field `voice`).
-    If `voice` is provided, calls our internal /stt/ endpoint to transcribe.
+    Accepts either text (form field `content`) or an audio file (form field `audio_file`).
+    If `audio_file` is provided, calls our internal transcription to transcribe.
     Saves user message, invokes AI, saves AI message, and returns the AI message.
     """
     session = db.query(ChatSession).filter(
         ChatSession.id == session_id,
-        ChatSession.user_id == user_id
+        ChatSession.user_id == str(current_user.id)
     ).first()
     
     if not session:
         raise HTTPException(404, "Session not found or access denied")
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(404, "User not found")
 
     # Resolve content
-    content = None
+    text_content = None
     transcription_metadata = {}
 
-    if voice:
+    if audio_file:
         # Handle voice message processing
-        orig_name = voice.filename
+        orig_name = audio_file.filename
         tmp_name = f"{uuid4().hex}_{orig_name}"
         raw_path = os.path.join(UPLOAD_FOLDER, tmp_name)
         
         with open(raw_path, "wb") as f:
-            f.write(await voice.read())
+            f.write(await audio_file.read())
 
         # Convert to WAV mono 16kHz 16-bit
         wav_path = raw_path.rsplit(".", 1)[0] + "_converted.wav"
@@ -73,7 +71,7 @@ async def send_message(
             raise HTTPException(400, str(e))
 
         # Transcribe
-        content = transcribe_audio(wav_path)
+        text_content = transcribe_audio(wav_path)
         transcription_metadata = {
             "original_filename": orig_name,
             "audio_duration": len(sound) / 1000.0,  # seconds
@@ -87,38 +85,135 @@ async def send_message(
             except:
                 pass
                 
-    elif text:
-        content = text
+    elif content:
+        text_content = content
     else:
-        raise HTTPException(400, "Either text or voice must be provided")
+        raise HTTPException(400, "Either content or audio_file must be provided")
 
     # Process through AI agent with full database updates
     try:
-        result = await process_ai_conversation(db, user_id, session_id, content)
+        # Try to use OpenRouter API directly for faster response
+        api_key = os.getenv("OPENROUTER_API_KEY")
         
-        # GET THE MOST RECENT AI MESSAGE for response
-        ai_message = db.query(ChatMessage).filter(
-            ChatMessage.session_id == session_id,
-            ChatMessage.role == MessageRole.ASSISTANT
-        ).order_by(ChatMessage.message_order.desc()).first()
-        
-        if not ai_message:
-            raise HTTPException(500, "AI response not found in database")
+        if api_key:
+            # Call OpenRouter API directly
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "deepseek/deepseek-chat-v3.1:free",
+                    "messages": [
+                        {
+                            "role": "system", 
+                            "content": "You are TheraSage, a compassionate AI therapist specialized in emotional support. Respond warmly and helpfully to users' concerns. Keep responses concise but caring."
+                        },
+                        {
+                            "role": "user", 
+                            "content": text_content
+                        }
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 150
+                }
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                ai_response_content = result['choices'][0]['message']['content']
+                
+                # Save user message
+                next_order = (session.total_messages or 0) + 1
+                user_message = ChatMessage(
+                    session_id=session_id,
+                    content=text_content,
+                    role=MessageRole.USER,
+                    message_order=next_order,
+                    created_at=datetime.utcnow()
+                )
+                db.add(user_message)
+                
+                # Save AI response
+                next_order += 1
+                ai_message = ChatMessage(
+                    session_id=session_id,
+                    content=ai_response_content,
+                    role=MessageRole.ASSISTANT,
+                    message_order=next_order,
+                    created_at=datetime.utcnow(),
+                    ai_model_used="deepseek/deepseek-chat-v3.1:free",
+                    confidence_score=0.9
+                )
+                db.add(ai_message)
+                
+                # Update session
+                session.total_messages = next_order
+                session.last_message_at = datetime.utcnow()
+                current_user.last_activity = datetime.utcnow()
+                
+                db.commit()
 
-        # Return comprehensive message response
-        response_data = ChatMessageResponse(
+                return ChatMessageResponse(
+                    id=str(ai_message.id),
+                    content=ai_message.content,
+                    role=ai_message.role.value,
+                    message_order=ai_message.message_order,
+                    created_at=ai_message.created_at,
+                    sentiment_score=None,
+                    risk_indicators={}
+                )
+            else:
+                print(f"OpenRouter API error: {response.status_code} - {response.text}")
+        
+        # Fallback if API fails
+        next_order = (session.total_messages or 0) + 1
+        
+        # Save user message
+        user_message = ChatMessage(
+            session_id=session_id,
+            content=text_content,
+            role=MessageRole.USER,
+            message_order=next_order,
+            created_at=datetime.utcnow()
+        )
+        db.add(user_message)
+        
+        # Create thoughtful fallback response
+        next_order += 1
+        ai_response_content = "I hear you, and I want you to know that your feelings are completely valid. It sounds like you're going through something important. Can you tell me more about what's on your mind? 💜"
+        
+        ai_message = ChatMessage(
+            session_id=session_id,
+            content=ai_response_content,
+            role=MessageRole.ASSISTANT,
+            message_order=next_order,
+            created_at=datetime.utcnow(),
+            ai_model_used="fallback",
+            confidence_score=0.7
+        )
+        db.add(ai_message)
+        
+        # Update session
+        session.total_messages = next_order
+        session.last_message_at = datetime.utcnow()
+        current_user.last_activity = datetime.utcnow()
+        
+        db.commit()
+
+        return ChatMessageResponse(
             id=str(ai_message.id),
             content=ai_message.content,
             role=ai_message.role.value,
             message_order=ai_message.message_order,
             created_at=ai_message.created_at,
-            sentiment_score=ai_message.sentiment_score,
-            risk_indicators=ai_message.risk_indicators or {}
+            sentiment_score=None,
+            risk_indicators={}
         )
         
-        return response_data
-        
     except Exception as e:
+        print(f"Message processing error: {e}")
         # Fallback with database logging
         print(f"AI processing error: {e}")
         
@@ -140,7 +235,7 @@ async def send_message(
         session.last_message_at = datetime.utcnow()
         
         # Update user activity
-        user.last_activity = datetime.utcnow()
+        current_user.last_activity = datetime.utcnow()
         
         db.commit()
         
@@ -154,13 +249,13 @@ async def send_message(
             risk_indicators={"error": "processing_failed"}
         )
 
-@router.get("/{session_id}", response_model=List[ChatMessageResponse])
+@router.get("/session/{session_id}", response_model=List[ChatMessageResponse])
 async def get_messages(
-    session_id: UUID,
-    user_id: str = Query(...),
+    session_id: str,
     limit: int = Query(10, gt=0, le=100),
-    before: Optional[UUID] = Query(None),
+    before: Optional[str] = Query(None),
     include_metadata: bool = Query(False),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -171,15 +266,13 @@ async def get_messages(
     # Verify session
     session = db.query(ChatSession).filter(
         ChatSession.id == session_id,
-        ChatSession.user_id == user_id
+        ChatSession.user_id == str(current_user.id)
     ).first()
     if not session:
         raise HTTPException(404, "Session not found or access denied")
     
-    user = db.query(User).filter(User.id == user_id).first()
-    if user:
-        user.last_activity = datetime.utcnow()
-        db.commit()
+    current_user.last_activity = datetime.utcnow()
+    db.commit()
     
     query = db.query(ChatMessage).filter(ChatMessage.session_id == session_id)
 

@@ -1,7 +1,8 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timedelta
-from uuid import UUID
+
+# Note: Using strings for IDs to maintain SQLite compatibility
 
 # Pydantic models
 class UserCreate(BaseModel):
@@ -23,15 +24,13 @@ class UserResponse(BaseModel):
     
     class Config:
         from_attributes = True
-        orm_mode = True
 
 class ChatSessionCreate(BaseModel):
     #title: Optional[str] = None
     title: Union[str, None] = None
-    user_id: str
 
 class ChatSessionResponse(BaseModel):
-    id: UUID
+    id: str
     title: Optional[str]
     session_number: int
     current_risk_level: str
@@ -45,19 +44,6 @@ class ChatSessionResponse(BaseModel):
     
     class Config:
         from_attributes = True
-        orm_mode = True
-
-class SessionRenameRequest(BaseModel):
-    new_title: str
-    user_id: UUID
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "new_title": "My Updated Session Title",
-                "user_id": "52e5122b-fbff-4d60-b338-c4f417ce2872"
-            }
-        }
 
 class ChatMessageCreate(BaseModel):
     content: str
@@ -74,13 +60,12 @@ class ChatMessageResponse(BaseModel):
     
     class Config:
         from_attributes = True
-        orm_mode = True
 
 class SessionRenameRequest(BaseModel):
     new_title: str
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "new_title": "My Updated Session Title"
             }
@@ -105,7 +90,6 @@ class CommunityPostResponse(BaseModel):
     
     class Config:
         from_attributes = True
-        orm_mode = True
 
 class CommentCreate(BaseModel):
     content: str
@@ -120,4 +104,3 @@ class CommentResponse(BaseModel):
     
     class Config:
         from_attributes = True
-        orm_mode = True
