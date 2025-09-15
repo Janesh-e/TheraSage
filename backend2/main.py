@@ -54,14 +54,6 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully")
     
-    # Run migration for enhanced features
-    try:
-        from database_migration import add_summary_features
-        add_summary_features()
-        logger.info("Enhanced features migration completed")
-    except Exception as e:
-        logger.warning(f"Migration warning: {e}")
-    
     yield
     logger.info("Application shutdown")
 
