@@ -48,13 +48,11 @@ class ChatSessionResponse(BaseModel):
 
 class SessionRenameRequest(BaseModel):
     new_title: str
-    user_id: str
 
     class Config:
         schema_extra = {
             "example": {
-                "new_title": "My Updated Session Title",
-                "user_id": "52e5122b-fbff-4d60-b338-c4f417ce2872"
+                "new_title": "My Updated Session Title"
             }
         }
 

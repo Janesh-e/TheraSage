@@ -90,164 +90,56 @@ async def send_message(
     else:
         raise HTTPException(400, "Either content or audio_file must be provided")
 
-    # Process through AI agent with full database updates
+    # 3. Delegate to `process_ai_conversation`
     try:
-        # Try to use OpenRouter API directly for faster response
-        api_key = os.getenv("OPENROUTER_API_KEY")
-        
-        if api_key:
-            # Call OpenRouter API directly
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "deepseek/deepseek-chat-v3.1:free",
-                    "messages": [
-                        {
-                            "role": "system", 
-                            "content": "You are TheraSage, a compassionate AI therapist specialized in emotional support. Respond warmly and helpfully to users' concerns. Keep responses concise but caring."
-                        },
-                        {
-                            "role": "user", 
-                            "content": text_content
-                        }
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 150
-                }
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                ai_response_content = result['choices'][0]['message']['content']
-                
-                # Save user message
-                next_order = (session.total_messages or 0) + 1
-                user_message = ChatMessage(
-                    session_id=session_id,
-                    content=text_content,
-                    role=MessageRole.USER,
-                    message_order=next_order,
-                    created_at=datetime.utcnow()
-                )
-                db.add(user_message)
-                
-                # Save AI response
-                next_order += 1
-                ai_message = ChatMessage(
-                    session_id=session_id,
-                    content=ai_response_content,
-                    role=MessageRole.ASSISTANT,
-                    message_order=next_order,
-                    created_at=datetime.utcnow(),
-                    ai_model_used="deepseek/deepseek-chat-v3.1:free",
-                    confidence_score=0.9
-                )
-                db.add(ai_message)
-                
-                # Update session
-                session.total_messages = next_order
-                session.last_message_at = datetime.utcnow()
-                current_user.last_activity = datetime.utcnow()
-                
-                db.commit()
-
-                return ChatMessageResponse(
-                    id=str(ai_message.id),
-                    content=ai_message.content,
-                    role=ai_message.role.value,
-                    message_order=ai_message.message_order,
-                    created_at=ai_message.created_at,
-                    sentiment_score=None,
-                    risk_indicators={}
-                )
-            else:
-                print(f"OpenRouter API error: {response.status_code} - {response.text}")
-        
-        # Fallback if API fails
-        next_order = (session.total_messages or 0) + 1
-        
-        # Save user message
-        user_message = ChatMessage(
-            session_id=session_id,
-            content=text_content,
-            role=MessageRole.USER,
-            message_order=next_order,
-            created_at=datetime.utcnow()
-        )
-        db.add(user_message)
-        
-        # Create thoughtful fallback response
-        next_order += 1
-        ai_response_content = "I hear you, and I want you to know that your feelings are completely valid. It sounds like you're going through something important. Can you tell me more about what's on your mind? 💜"
-        
-        ai_message = ChatMessage(
-            session_id=session_id,
-            content=ai_response_content,
-            role=MessageRole.ASSISTANT,
-            message_order=next_order,
-            created_at=datetime.utcnow(),
-            ai_model_used="fallback",
-            confidence_score=0.7
-        )
-        db.add(ai_message)
-        
-        # Update session
-        session.total_messages = next_order
-        session.last_message_at = datetime.utcnow()
-        current_user.last_activity = datetime.utcnow()
-        
-        db.commit()
-
-        return ChatMessageResponse(
-            id=str(ai_message.id),
-            content=ai_message.content,
-            role=ai_message.role.value,
-            message_order=ai_message.message_order,
-            created_at=ai_message.created_at,
-            sentiment_score=None,
-            risk_indicators={}
-        )
-        
+        result = await process_ai_conversation(db, str(current_user.id), session_id, text_content)
     except Exception as e:
-        print(f"Message processing error: {e}")
-        # Fallback with database logging
-        print(f"AI processing error: {e}")
-        
-        # Create fallback response and save to DB
-        next_order = (session.total_messages or 0) + 1
-        
-        fallback_message = ChatMessage(
-            session_id=session_id,
-            content="I'm having trouble processing your message right now. Could you try again?",
-            role=MessageRole.ASSISTANT,
-            message_order=next_order,
-            created_at=datetime.utcnow(),
-            ai_model_used="fallback",
-            confidence_score=0.0
-        )
-        
-        db.add(fallback_message)
-        session.total_messages = next_order
-        session.last_message_at = datetime.utcnow()
-        
-        # Update user activity
-        current_user.last_activity = datetime.utcnow()
-        
-        db.commit()
-        
-        return ChatMessageResponse(
-            id=str(fallback_message.id),
-            content=fallback_message.content,
-            role="assistant",
-            message_order=next_order,
-            created_at=fallback_message.created_at,
-            sentiment_score=None,
-            risk_indicators={"error": "processing_failed"}
-        )
+        raise HTTPException(500, f"AI processing failed: {e}")
+
+    # 4. The result contains "response" and metadata; save both user message and AI message
+    # Compute message orders
+    user_order = (session.total_messages or 0) + 1
+    ai_order = user_order + 1
+
+    # Save user message
+    user_msg = ChatMessage(
+        session_id=session_id,
+        content=text_content,
+        role=MessageRole.USER,
+        message_order=user_order,
+        created_at=datetime.utcnow()
+    )
+    db.add(user_msg)
+
+    # Save AI response
+    ai_msg = ChatMessage(
+        session_id=session_id,
+        content=result["response"],
+        role=MessageRole.ASSISTANT,
+        message_order=ai_order,
+        created_at=datetime.utcnow(),
+        ai_model_used="deepseek/deepseek-chat-v3.1:free",
+        response_time_ms=result.get("response_time_ms"),
+        confidence_score=result.get("analysis", {}).get("urgency_level", 5) / 10.0,
+    )
+    db.add(ai_msg)
+
+    # Update session counters
+    session.total_messages = ai_order
+    session.last_message_at = datetime.utcnow()
+    current_user.last_activity = datetime.utcnow()
+    db.commit()
+    db.refresh(ai_msg)
+
+    return ChatMessageResponse(
+        id=str(ai_msg.id),
+        content=ai_msg.content,
+        role=ai_msg.role.value,
+        message_order=ai_msg.message_order,
+        created_at=ai_msg.created_at,
+        sentiment_score=ai_msg.sentiment_score,
+        risk_indicators=ai_msg.risk_indicators or {}
+    )
 
 @router.get("/session/{session_id}", response_model=List[ChatMessageResponse])
 async def get_messages(

@@ -92,7 +92,7 @@ async def create_chat_session(
 async def rename_chat_session(
     session_id: str,
     rename_data: SessionRenameRequest,
-    user_id: str = Body(..., embed=True),  # Extract user_id from request body
+    user_id: str = Query(...),  # Extract user_id from request body
     db: Session = Depends(get_db)
 ):
     """Rename a chat session"""
