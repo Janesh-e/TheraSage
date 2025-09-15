@@ -17,6 +17,7 @@ import Journal from "./pages/Journal";
 import Messages from "./pages/Messages";
 import Community from "./pages/Community";
 import ResourceHub from "./pages/ResourceHub";
+import TherapistLogin from "./pages/TherapistLogin";
 import TherapistDashboard from "./pages/TherapistDashboard";
 import TherapistCrisis from "./pages/TherapistCrisis";
 import TherapistSessions from "./pages/TherapistSessions";
@@ -117,6 +118,7 @@ const App = () => (
               />
 
               {/* Therapist Routes */}
+              <Route path="/therapist/login" element={<TherapistLogin />} />
               <Route
                 path="/therapist/dashboard"
                 element={
