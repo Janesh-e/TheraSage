@@ -41,6 +41,12 @@ interface CrisisAlert {
   confidence_score: number;
   has_session_scheduled: boolean;
   user_college: string;
+  trigger_message: string;
+  detected_indicators: string[];
+  risk_factors: string[];
+  main_concerns: string[];
+  cognitive_distortions: string[];
+  urgency_level: string;
 }
 
 const getRiskColor = (risk: string) => {
@@ -85,6 +91,7 @@ export function CrisisWorklistTable() {
   const [schedulingSession, setSchedulingSession] = useState(false);
   const [sessionDate, setSessionDate] = useState("");
   const [sessionTime, setSessionTime] = useState("");
+  const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
 
   useEffect(() => {
     fetchCrisisWorklist();
@@ -400,9 +407,135 @@ export function CrisisWorklistTable() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" title="View Details">
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <Dialog open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
+                          <DialogTrigger asChild>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              title="View Details"
+                              onClick={() => setSelectedCrisis(crisis)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle>Crisis Alert Details</DialogTitle>
+                              <DialogDescription>
+                                Detailed information for {selectedCrisis?.user_anonymous}
+                              </DialogDescription>
+                            </DialogHeader>
+                            {selectedCrisis && (
+                              <div className="space-y-6">
+                                {/* Basic Information */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm font-medium">Student ID</Label>
+                                    <p className="text-sm text-muted-foreground">{selectedCrisis.user_anonymous}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">College</Label>
+                                    <p className="text-sm text-muted-foreground">{selectedCrisis.user_college}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Crisis Type</Label>
+                                    <p className="text-sm text-muted-foreground">{selectedCrisis.crisis_type.replace(/_/g, ' ')}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Risk Level</Label>
+                                    <Badge className={getRiskColor(selectedCrisis.risk_level)}>
+                                      {selectedCrisis.risk_level.toUpperCase()}
+                                    </Badge>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Urgency Level</Label>
+                                    <p className="text-sm text-muted-foreground">{selectedCrisis.urgency_level}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Confidence Score</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                      {Math.round(selectedCrisis.confidence_score > 1 ? selectedCrisis.confidence_score : selectedCrisis.confidence_score * 100)}%
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Detected</Label>
+                                    <p className="text-sm text-muted-foreground">{formatTimeAgo(selectedCrisis.detected_at)}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Status</Label>
+                                    <Badge className={getStatusColor(selectedCrisis.status)}>
+                                      {selectedCrisis.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+
+                                {/* Trigger Message */}
+                                <div>
+                                  <Label className="text-sm font-medium">Trigger Message</Label>
+                                  <div className="mt-2 p-3 bg-muted rounded-md">
+                                    <p className="text-sm">{selectedCrisis.trigger_message}</p>
+                                  </div>
+                                </div>
+
+                                {/* Detected Indicators */}
+                                {selectedCrisis.detected_indicators?.length > 0 && (
+                                  <div>
+                                    <Label className="text-sm font-medium">Detected Indicators</Label>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {selectedCrisis.detected_indicators.map((indicator, index) => (
+                                        <Badge key={index} variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                          {indicator}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Risk Factors */}
+                                {selectedCrisis.risk_factors?.length > 0 && (
+                                  <div>
+                                    <Label className="text-sm font-medium">Risk Factors</Label>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {selectedCrisis.risk_factors.map((factor, index) => (
+                                        <Badge key={index} variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                          {factor}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Main Concerns */}
+                                {selectedCrisis.main_concerns?.length > 0 && (
+                                  <div>
+                                    <Label className="text-sm font-medium">Main Concerns</Label>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {selectedCrisis.main_concerns.map((concern, index) => (
+                                        <Badge key={index} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                          {concern}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Cognitive Distortions */}
+                                {selectedCrisis.cognitive_distortions?.length > 0 && (
+                                  <div>
+                                    <Label className="text-sm font-medium">Cognitive Distortions</Label>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {selectedCrisis.cognitive_distortions.map((distortion, index) => (
+                                        <Badge key={index} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                          {distortion}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </DialogContent>
+                        </Dialog>
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button
