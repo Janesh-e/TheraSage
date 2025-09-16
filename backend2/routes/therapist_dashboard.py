@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Query, Body
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, func
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from db import get_db
@@ -41,6 +41,12 @@ class CrisisWorklistItem(BaseModel):
     confidence_score: float
     has_session_scheduled: bool
     user_college: str
+    trigger_message: Optional[str] = None
+    detected_indicators: Optional[Dict[str, Any]] = None
+    risk_factors: Optional[List[str]] = None
+    main_concerns: Optional[List[str]] = None
+    cognitive_distortions: Optional[List[str]] = None
+    urgency_level: Optional[int] = None
 
 # ===== THERAPIST DASHBOARD OVERVIEW =====
 
@@ -173,7 +179,14 @@ async def get_therapist_crisis_worklist(
             TherapistSession.crisis_alert_id == alert.id
         ).first() is not None
         
-        hours_since = (datetime.utcnow() - alert.detected_at).total_seconds() / 3600
+        hours_since = (datetime.now(timezone.utc) - alert.detected_at).total_seconds() / 3600
+
+        # Extract data from detected_indicators JSON
+        detected_indicators = alert.detected_indicators or {}
+        risk_factors = detected_indicators.get("risk_factors", [])
+        main_concerns = detected_indicators.get("main_concerns", [])
+        cognitive_distortions = detected_indicators.get("cognitive_distortions", [])
+        urgency_level = detected_indicators.get("urgency_level")
         
         worklist_items.append(CrisisWorklistItem(
             id=str(alert.id),
@@ -185,7 +198,13 @@ async def get_therapist_crisis_worklist(
             hours_since_detection=round(hours_since, 2),
             confidence_score=round(alert.confidence_score / 10.0, 2),
             has_session_scheduled=has_session,
-            user_college=alert.user.college_name if alert.user else "Unknown"
+            user_college=alert.user.college_name if alert.user else "Unknown",
+            trigger_message=alert.trigger_message,
+            detected_indicators=detected_indicators,
+            risk_factors=risk_factors,
+            main_concerns=main_concerns,
+            cognitive_distortions=cognitive_distortions,
+            urgency_level=urgency_level
         ))
     
     return worklist_items
@@ -250,63 +269,72 @@ async def get_therapist_session_schedule(
 @router.post("/crisis/{alert_id}/quick-response")
 async def send_quick_crisis_response(
     alert_id: UUID,
-    response_data: Dict[str, Any] = Body(...),
-    therapist_id: UUID = Body(..., embed=True),
+    request_data: Dict[str, Any] = Body(...), 
     db: Session = Depends(get_db)
 ):
     """Send quick response to crisis alert"""
+    # Extract therapist_id from the request data
+    therapist_id = request_data.get("therapist_id")
+    if not therapist_id:
+        raise HTTPException(status_code=400, detail="therapist_id is required")
+    
+    # Convert to UUID
+    try:
+        therapist_id = UUID(therapist_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid therapist_id format")
     
     crisis_alert = db.query(CrisisAlert).filter(CrisisAlert.id == alert_id).first()
     if not crisis_alert:
         raise HTTPException(status_code=404, detail="Crisis alert not found")
-    
+
     if crisis_alert.assigned_therapist_id != therapist_id:
         raise HTTPException(status_code=403, detail="Not authorized for this crisis alert")
-    
-    response_type = response_data.get("response_type")  # "acknowledge", "schedule_session", "escalate"
-    
+
+    response_type = request_data.get("response_type")  # Get from request_data
     current_time = datetime.utcnow()
-    
+
     if response_type == "acknowledge":
         if crisis_alert.status == "acknowledged":
             raise HTTPException(status_code=400, detail="Alert already acknowledged")
+
         crisis_alert.status = "acknowledged"
         crisis_alert.acknowledged_at = current_time
-        
+
         # Update response actions
         crisis_alert.response_actions = crisis_alert.response_actions or {}
         crisis_alert.response_actions.update({
             "quick_acknowledged_at": current_time.isoformat(),
-            "therapist_notes": response_data.get("notes", "")
+            "therapist_notes": request_data.get("notes", "")  # Get from request_data
         })
-        
+
     elif response_type == "schedule_session":
         # Create therapist session
-        scheduled_for_str = response_data.get("scheduled_for")
+        scheduled_for_str = request_data.get("scheduled_for")  # Get from request_data
         if not scheduled_for_str:
             raise HTTPException(status_code=400, detail="scheduled_for is required")
-        
+
         # Parse the datetime string
         try:
             scheduled_for = datetime.fromisoformat(scheduled_for_str.replace('Z', '+00:00'))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid datetime format")
-        
+
         therapist_session = TherapistSession(
             user_id=crisis_alert.user_id,
             crisis_alert_id=crisis_alert.id,
-            session_type=response_data.get("session_type", "crisis"),
+            session_type=request_data.get("session_type", "crisis"),  # Get from request_data
             urgency_level=crisis_alert.risk_level,
             requested_at=current_time,
             scheduled_for=scheduled_for,
-            duration_minutes=response_data.get("duration_minutes", 50),
+            duration_minutes=request_data.get("duration_minutes", 50),  # Get from request_data
             status=SessionStatus.SCHEDULED,
             external_therapist_id=str(therapist_id),
             meeting_link=f"https://meet.therasage.com/crisis/{str(alert_id)[:8]}"
         )
-        
+
         db.add(therapist_session)
-        
+
         # Update crisis alert
         crisis_alert.status = "escalated"
         crisis_alert.escalated_to_human = True
@@ -316,9 +344,9 @@ async def send_quick_crisis_response(
             "session_scheduled_for": scheduled_for.isoformat(),
             "session_id": str(therapist_session.id)
         })
-    
+
     db.commit()
-    
+
     return {
         "message": f"Crisis alert {response_type} successful",
         "alert_id": str(alert_id),
