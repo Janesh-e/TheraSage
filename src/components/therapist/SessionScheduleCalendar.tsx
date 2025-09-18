@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,64 +10,50 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CalendarIcon, Clock, Video, MapPin, Phone, Plus, Edit, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { format, addDays } from "date-fns";
+import { toast } from "sonner";
+import { SessionManagement } from "./SessionManagement";
 
-const sessions = [
-  {
-    id: "S-001",
-    date: new Date(2024, 11, 15),
-    time: "2:00 PM",
-    duration: "50 min",
-    patientId: "Patient-X45Y",
-    type: "emergency",
-    mode: "video",
-    status: "confirmed",
-    priority: "high",
-    meetingLink: "https://meet.example.com/abc123",
-  },
-  {
-    id: "S-002", 
-    date: new Date(2024, 11, 15),
-    time: "3:00 PM",
-    duration: "50 min",
-    patientId: "Patient-Z12A",
-    type: "follow-up",
-    mode: "in-person",
-    status: "confirmed",
-    priority: "medium",
-  },
-  {
-    id: "S-003",
-    date: new Date(2024, 11, 16),
-    time: "10:00 AM",
-    duration: "30 min",
-    patientId: "Patient-B78C", 
-    type: "check-in",
-    mode: "phone",
-    status: "pending",
-    priority: "low",
-  },
-];
+interface ScheduleSession {
+  id: string;
+  scheduled_for: string;
+  duration_minutes: number;
+  session_type: string;
+  status: string;
+  urgency_level: string;
+  meeting_link?: string;
+  user_info?: {
+    anonymous_username: string;
+    college_name: string;
+  };
+  crisis_info?: {
+    crisis_type: string;
+    risk_level: string;
+  };
+}
 
-const getTypeColor = (type: string) => {
-  switch (type) {
-    case "emergency":
+const getUrgencyColor = (urgency: string) => {
+  switch (urgency) {
+    case "CRITICAL":
       return "bg-destructive text-destructive-foreground";
-    case "follow-up":
+    case "HIGH":
+      return "bg-orange-500 text-white";
+    case "MEDIUM":
       return "bg-blue-500 text-white";
-    case "check-in":
+    case "LOW":
       return "bg-green-500 text-white";
     default:
       return "bg-muted text-muted-foreground";
   }
 };
 
-const getModeIcon = (mode: string) => {
-  switch (mode) {
-    case "video":
+const getSessionTypeIcon = (type: string) => {
+  switch (type) {
+    case "ONLINE_MEET":
       return Video;
-    case "in-person":
+    case "IN_PERSON":
       return MapPin;
-    case "phone":
+    case "PHONE_CALL":
       return Phone;
     default:
       return Clock;
@@ -76,193 +62,169 @@ const getModeIcon = (mode: string) => {
 
 export function SessionScheduleCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
+  const [sessions, setSessions] = useState<ScheduleSession[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTherapistSchedule();
+  }, []);
+
+  const fetchTherapistSchedule = async () => {
+    try {
+      setLoading(true);
+      const therapistData = localStorage.getItem("therapistUser");
+      if (!therapistData) {
+        toast.error("No therapist session found");
+        return;
+      }
+
+      const therapist = JSON.parse(therapistData);
+      const response = await fetch(
+        `http://localhost:8000/therapist-dashboard/session-schedule/${therapist.id}?days_ahead=14`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch schedule");
+      }
+
+      const data = await response.json();
+      setSessions(data.sessions || []);
+    } catch (error) {
+      console.error("Error fetching schedule:", error);
+      toast.error("Failed to load schedule");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const selectedDateSessions = sessions.filter(
     session => selectedDate && 
-    session.date.toDateString() === selectedDate.toDateString()
+    new Date(session.scheduled_for).toDateString() === selectedDate.toDateString()
   );
 
   const hasSessionOnDate = (date: Date) => {
     return sessions.some(session => 
-      session.date.toDateString() === date.toDateString()
+      new Date(session.scheduled_for).toDateString() === date.toDateString()
     );
   };
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Calendar */}
-      <Card className="lg:col-span-1">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5 text-primary" />
-            Session Calendar
-          </CardTitle>
-          <CardDescription>Select a date to view sessions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            className={cn("w-full pointer-events-auto")}
-            modifiers={{
-              hasSession: (date) => hasSessionOnDate(date)
-            }}
-            modifiersStyles={{
-              hasSession: {
-                backgroundColor: "hsl(var(--primary))",
-                color: "hsl(var(--primary-foreground))",
-                borderRadius: "4px"
-              }
-            }}
-          />
-        </CardContent>
-      </Card>
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-3">
+          <CardContent className="flex items-center justify-center py-8">
+            <div className="text-muted-foreground">Loading schedule...</div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-      {/* Sessions for Selected Date */}
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>
-                Sessions for {selectedDate?.toLocaleDateString()}
-              </CardTitle>
-              <CardDescription>
-                {selectedDateSessions.length} session(s) scheduled
-              </CardDescription>
-            </div>
-            <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Schedule Session
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Schedule Emergency Session</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Patient ID</Label>
-                    <Input placeholder="Enter patient ID" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Session Type</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="emergency">Emergency</SelectItem>
-                        <SelectItem value="follow-up">Follow-up</SelectItem>
-                        <SelectItem value="check-in">Check-in</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Mode</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select mode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="video">Video Call</SelectItem>
-                        <SelectItem value="phone">Phone Call</SelectItem>
-                        <SelectItem value="in-person">In Person</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Time</Label>
-                    <Input type="time" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Duration (minutes)</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select duration" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="30">30 minutes</SelectItem>
-                        <SelectItem value="50">50 minutes</SelectItem>
-                        <SelectItem value="90">90 minutes</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Notes</Label>
-                    <Textarea placeholder="Session notes (optional)" />
-                  </div>
-                  <div className="flex gap-2 pt-4">
-                    <Button className="flex-1">Schedule Session</Button>
-                    <Button variant="outline" onClick={() => setIsScheduleDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {selectedDateSessions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No sessions scheduled for this date</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {selectedDateSessions.map((session) => {
-                const ModeIcon = getModeIcon(session.mode);
-                return (
-                  <div key={session.id} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge className={getTypeColor(session.type)}>
-                          {session.type}
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendar */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-primary" />
+              Session Calendar
+            </CardTitle>
+            <CardDescription>Select a date to view sessions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              className={cn("w-full pointer-events-auto")}
+              modifiers={{
+                hasSession: (date) => hasSessionOnDate(date)
+              }}
+              modifiersStyles={{
+                hasSession: {
+                  backgroundColor: "hsl(var(--primary))",
+                  color: "hsl(var(--primary-foreground))",
+                  borderRadius: "4px"
+                }
+              }}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Sessions for Selected Date */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>
+              Sessions for {selectedDate?.toLocaleDateString()}
+            </CardTitle>
+            <CardDescription>
+              {selectedDateSessions.length} session(s) scheduled
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {selectedDateSessions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No sessions scheduled for this date</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {selectedDateSessions.map((session) => {
+                  const SessionIcon = getSessionTypeIcon(session.session_type);
+                  return (
+                    <div key={session.id} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge className={getUrgencyColor(session.urgency_level)}>
+                            {session.urgency_level}
+                          </Badge>
+                          <span className="font-medium">
+                            {session.user_info?.anonymous_username || "Anonymous"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <SessionIcon className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">
+                            {format(new Date(session.scheduled_for), "p")}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>Duration: {session.duration_minutes} min</span>
+                        <Badge variant={session.status === "SCHEDULED" ? "default" : "secondary"}>
+                          {session.status.replace("_", " ")}
                         </Badge>
-                        <span className="font-medium">{session.patientId}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <ModeIcon className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{session.time}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>Duration: {session.duration}</span>
-                      <Badge variant={session.status === "confirmed" ? "default" : "secondary"}>
-                        {session.status}
-                      </Badge>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      {session.mode === "video" && session.meetingLink && (
-                        <Button size="sm" asChild>
-                          <a href={session.meetingLink} target="_blank" rel="noopener noreferrer">
-                            <Video className="h-4 w-4 mr-2" />
-                            Join Meeting
-                          </a>
-                        </Button>
+
+                      {session.crisis_info && (
+                        <div className="text-sm text-muted-foreground">
+                          Crisis: {session.crisis_info.crisis_type} ({session.crisis_info.risk_level})
+                        </div>
                       )}
-                      <Button size="sm" variant="outline">
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Cancel
-                      </Button>
+                      
+                      <div className="flex gap-2">
+                        {session.session_type === "ONLINE_MEET" && session.meeting_link && (
+                          <Button size="sm" asChild>
+                            <a href={session.meeting_link} target="_blank" rel="noopener noreferrer">
+                              <Video className="h-4 w-4 mr-2" />
+                              Join Meeting
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Session Management Component */}
+      <SessionManagement />
     </div>
   );
 }

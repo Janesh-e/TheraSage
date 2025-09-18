@@ -25,10 +25,19 @@ import {
   Calendar,
   CheckCircle,
   AlertTriangle,
+  Clock,
+  Video,
+  Phone,
+  MapPin,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface CrisisAlert {
   id: string;
@@ -41,249 +50,281 @@ interface CrisisAlert {
   confidence_score: number;
   has_session_scheduled: boolean;
   user_college: string;
-  trigger_message: string;
-  detected_indicators: string[];
-  risk_factors: string[];
-  main_concerns: string[];
-  cognitive_distortions: string[];
-  urgency_level: string;
+  trigger_message?: string;
+  detected_indicators?: any;
+  risk_factors?: string[];
+  main_concerns?: string[];
+  cognitive_distortions?: string[];
+  urgency_level?: number;
 }
 
-const getRiskColor = (risk: string) => {
-  switch (risk) {
-    case "critical":
-      return "bg-destructive text-destructive-foreground";
-    case "high":
-      return "bg-orange-500 text-white";
-    case "medium":
-      return "bg-yellow-500 text-white";
-    case "low":
-      return "bg-green-500 text-white";
-    default:
-      return "bg-muted text-muted-foreground";
-  }
-};
+interface TherapistUser {
+  id: string;
+  name: string;
+  email: string;
+}
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "pending":
-      return "bg-red-100 text-red-800";
-    case "acknowledged":
-      return "bg-yellow-100 text-yellow-800";
-    case "escalated":
-      return "bg-blue-100 text-blue-800";
-    case "resolved":
-      return "bg-green-100 text-green-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
+interface SessionFormData {
+  session_type: string;
+  scheduled_for: Date;
+  duration_minutes: number;
+  meeting_link?: string;
+  therapist_id: string;
+}
 
 export function CrisisWorklistTable() {
+  const [alerts, setAlerts] = useState<CrisisAlert[]>([]);
+  const [filteredAlerts, setFilteredAlerts] = useState<CrisisAlert[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
-  const [sortColumn, setSortColumn] = useState<string>("");
+  const [sortBy, setSortBy] = useState("detected_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [crisisData, setCrisisData] = useState<CrisisAlert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCrisis, setSelectedCrisis] = useState<CrisisAlert | null>(null);
-  const [schedulingSession, setSchedulingSession] = useState(false);
-  const [sessionDate, setSessionDate] = useState("");
-  const [sessionTime, setSessionTime] = useState("");
-  const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
+  const [selectedAlert, setSelectedAlert] = useState<CrisisAlert | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [therapistUser, setTherapistUser] = useState<TherapistUser | null>(null);
+  const [sessionForm, setSessionForm] = useState<SessionFormData>({
+    session_type: "ONLINE_MEET",
+    scheduled_for: new Date(),
+    duration_minutes: 50,
+    meeting_link: "",
+    therapist_id: "",
+  });
+  const [isSchedulingSession, setIsSchedulingSession] = useState(false);
 
   useEffect(() => {
-    fetchCrisisWorklist();
-  }, [statusFilter, riskFilter]);
-
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours < 1) {
-      const minutes = Math.round(diffInHours * 60);
-      return `${minutes}m ago`;
-    } else if (diffInHours < 24) {
-      return `${Math.round(diffInHours)}h ago`;
-    } else {
-      const days = Math.round(diffInHours / 24);
-      return `${days}d ago`;
+    // Get therapist user from localStorage
+    const therapistData = localStorage.getItem("therapistUser");
+    if (!therapistData) {
+      toast.error("No therapist session found");
+      return;
     }
-  };
 
-  const fetchCrisisWorklist = async () => {
+    const therapist = JSON.parse(therapistData);
+    setTherapistUser(therapist);
+    setSessionForm(prev => ({ ...prev, therapist_id: therapist.id }));
+    fetchAlerts(therapist.id);
+  }, []);
+
+  const fetchAlerts = async (therapistId: string) => {
     try {
-      const token = localStorage.getItem("therapist_token");
-      const therapistUser = JSON.parse(localStorage.getItem("therapist_user") || "{}");
-
-      if (!token || !therapistUser.id) {
-        toast.error("Authentication required");
-        return;
-      }
-
-      const url = new URL(`http://localhost:8000/therapist-dashboard/crisis-worklist/${therapistUser.id}`);
-      if (statusFilter !== "all") url.searchParams.append("status_filter", statusFilter);
-      if (riskFilter !== "all") url.searchParams.append("risk_filter", riskFilter);
-
-      const response = await fetch(url.toString(), {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.status === 401) {
-        toast.error("Authentication expired. Please login again.");
-        localStorage.removeItem("therapist_token");
-        localStorage.removeItem("therapist_user");
-        window.location.href = "/therapist/login";
-        return;
-      }
-
+      setLoading(true);
+      const response = await fetch(
+        `http://localhost:8000/therapist-dashboard/crisis-worklist/${therapistId}`
+      );
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error("Failed to fetch crisis worklist");
+        throw new Error("Failed to fetch crisis alerts");
       }
-
+      
       const data = await response.json();
-      setCrisisData(data);
+      setAlerts(data);
+      setFilteredAlerts(data);
     } catch (error) {
-      console.error("Error fetching crisis worklist:", error);
-      toast.error(error.message || "Failed to load crisis worklist");
+      console.error("Error fetching alerts:", error);
+      toast.error("Failed to load crisis alerts");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickResponse = async (alertId: string, responseType: string) => {
+  useEffect(() => {
+    let filtered = alerts.filter((alert) =>
+      alert.user_anonymous.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      alert.crisis_type.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((alert) => alert.status === statusFilter);
+    }
+
+    if (riskFilter !== "all") {
+      filtered = filtered.filter((alert) => alert.risk_level === riskFilter);
+    }
+
+    // Sort alerts
+    filtered.sort((a, b) => {
+      const aValue = a[sortBy as keyof CrisisAlert];
+      const bValue = b[sortBy as keyof CrisisAlert];
+      
+      if (sortOrder === "asc") {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setFilteredAlerts(filtered);
+  }, [alerts, searchTerm, statusFilter, riskFilter, sortBy, sortOrder]);
+
+  const getRiskLevelColor = (level: string) => {
+    switch (level.toLowerCase()) {
+      case "critical":
+        return "bg-destructive text-destructive-foreground";
+      case "high":
+        return "bg-orange-500 text-white";
+      case "medium":
+        return "bg-yellow-500 text-black";
+      case "low":
+        return "bg-green-500 text-white";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "pending":
+        return "bg-yellow-500 text-black";
+      case "acknowledged":
+        return "bg-blue-500 text-white";
+      case "escalated":
+        return "bg-purple-500 text-white";
+      case "resolved":
+        return "bg-green-500 text-white";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const handleAcknowledge = async (alertId: string) => {
     try {
-      const token = localStorage.getItem("therapist_token");
-      const therapistUser = JSON.parse(localStorage.getItem("therapist_user") || "{}");
+      const therapistData = localStorage.getItem("therapistUser");
+      if (!therapistData) return;
+      
+      const therapist = JSON.parse(therapistData);
+      
+      const response = await fetch(
+        `http://localhost:8000/therapist-dashboard/crisis/${alertId}/quick-response`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            therapist_id: therapist.id,
+            response_type: "acknowledge",
+            notes: "Crisis acknowledged by therapist"
+          }),
+        }
+      );
 
-      const response = await fetch(`http://localhost:8000/therapist-dashboard/crisis/${alertId}/quick-response`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          response_type: responseType,
-          therapist_id: therapistUser.id,
-        }),
-      });
+      if (!response.ok) {
+        throw new Error("Failed to acknowledge crisis");
+      }
 
-      if (!response.ok) throw new Error("Failed to send response");
-
-      toast.success(`Crisis alert ${responseType}d successfully`);
-      fetchCrisisWorklist(); // Refresh the list
+      toast.success("Crisis alert acknowledged successfully");
+      fetchAlerts(therapist.id);
     } catch (error) {
-      console.error("Error sending quick response:", error);
-      toast.error("Failed to send response");
+      console.error("Error acknowledging crisis:", error);
+      toast.error("Failed to acknowledge crisis alert");
     }
   };
 
   const handleScheduleSession = async () => {
-    if (!selectedCrisis || !sessionDate || !sessionTime) {
-      toast.error("Please fill in all session details");
-      return;
-    }
-
-    setSchedulingSession(true);
+    if (!selectedAlert || !therapistUser) return;
+    
     try {
-      const token = localStorage.getItem("therapist_token");
-      const therapistUser = JSON.parse(localStorage.getItem("therapist_user") || "{}");
+      setIsSchedulingSession(true);
+      
+      // Validate required fields
+      if (sessionForm.session_type === "ONLINE_MEET" && !sessionForm.meeting_link?.trim()) {
+        toast.error("Meeting link is required for online sessions");
+        return;
+      }
 
-      const scheduledFor = new Date(`${sessionDate}T${sessionTime}`).toISOString();
+      const response = await fetch(
+        `http://localhost:8000/therapist-dashboard/crisis/${selectedAlert.id}/create-session`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            session_type: sessionForm.session_type,
+            scheduled_for: sessionForm.scheduled_for.toISOString(),
+            duration_minutes: sessionForm.duration_minutes,
+            meeting_link: sessionForm.session_type === "ONLINE_MEET" ? sessionForm.meeting_link : null,
+            therapist_id: sessionForm.therapist_id,
+          }),
+        }
+      );
 
-      const response = await fetch(`http://localhost:8000/therapist-dashboard/crisis/${selectedCrisis.id}/quick-response`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          response_type: "schedule_session",
-          therapist_id: therapistUser.id,
-          scheduled_for: scheduledFor,
-          duration_minutes: 50,
-          session_type: "crisis",
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to schedule session");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to schedule session");
+      }
 
       toast.success("Session scheduled successfully");
-      setSelectedCrisis(null);
-      setSessionDate("");
-      setSessionTime("");
-      fetchCrisisWorklist();
+      setIsScheduleOpen(false);
+      setSelectedAlert(null);
+      fetchAlerts(therapistUser.id);
+      
+      // Reset form
+      setSessionForm({
+        session_type: "ONLINE_MEET",
+        scheduled_for: new Date(),
+        duration_minutes: 50,
+        meeting_link: "",
+        therapist_id: therapistUser.id,
+      });
     } catch (error) {
       console.error("Error scheduling session:", error);
-      toast.error("Failed to schedule session");
+      toast.error(error instanceof Error ? error.message : "Failed to schedule session");
     } finally {
-      setSchedulingSession(false);
+      setIsSchedulingSession(false);
     }
   };
 
-  const handleSort = (column: string) => {
-    if (sortColumn === column) {
+  const openScheduleModal = (alert: CrisisAlert) => {
+    setSelectedAlert(alert);
+    setIsScheduleOpen(true);
+  };
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
-      setSortColumn(column);
+      setSortBy(field);
       setSortOrder("desc");
     }
   };
 
-  // Filter and sort data
-  const filteredData = crisisData
-    .filter((item) => {
-      const matchesSearch = item.user_anonymous
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-      const matchesRisk = riskFilter === "all" || item.risk_level === riskFilter;
-      return matchesSearch && matchesStatus && matchesRisk;
-    })
-    .sort((a, b) => {
-      if (!sortColumn) return 0;
-
-      let aValue: any = a[sortColumn as keyof CrisisAlert];
-      let bValue: any = b[sortColumn as keyof CrisisAlert];
-
-      // Handle date sorting
-      if (sortColumn === "detected_at") {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      }
-
-      if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <div className="text-muted-foreground">Loading crisis alerts...</div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Crisis Worklist</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          Crisis Worklist
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* Filters */}
-        <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by student ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          <div className="flex gap-2">
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by student or crisis type..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-40">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -294,13 +335,12 @@ export function CrisisWorklistTable() {
                 <SelectItem value="resolved">Resolved</SelectItem>
               </SelectContent>
             </Select>
-
             <Select value={riskFilter} onValueChange={setRiskFilter}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-40">
                 <SelectValue placeholder="Risk Level" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Risks</SelectItem>
+                <SelectItem value="all">All Risk</SelectItem>
                 <SelectItem value="critical">Critical</SelectItem>
                 <SelectItem value="high">High</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
@@ -308,305 +348,369 @@ export function CrisisWorklistTable() {
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        {/* Table */}
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    className="h-8 p-0 hover:bg-muted/50"
-                    onClick={() => handleSort("user_anonymous")}
-                  >
-                    Student ID
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>Crisis Type</TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    className="h-8 p-0 hover:bg-muted/50"
-                    onClick={() => handleSort("risk_level")}
-                  >
-                    Risk Level
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    className="h-8 p-0 hover:bg-muted/50"
-                    onClick={() => handleSort("detected_at")}
-                  >
-                    Detected
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>Confidence</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>College</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
+          {/* Table */}
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center">
-                    Loading crisis alerts...
-                  </TableCell>
+                  <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort("user_anonymous")}>
+                      Student
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort("crisis_type")}>
+                      Crisis Type
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort("risk_level")}>
+                      Risk Level
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort("status")}>
+                      Status
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort("detected_at")}>
+                      Detected
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>Hours Ago</TableHead>
+                  <TableHead>Confidence</TableHead>
+                  <TableHead>Session</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ) : filteredData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center">
-                    No crisis alerts found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredData.map((crisis) => (
-                  <TableRow key={crisis.id} className="hover:bg-muted/50">
-                    <TableCell className="font-medium">
-                      {crisis.user_anonymous}
-                    </TableCell>
-                    <TableCell>{crisis.crisis_type.replace(/_/g, ' ')}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={getRiskColor(crisis.risk_level)}
-                      >
-                        {crisis.risk_level.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{formatTimeAgo(crisis.detected_at)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <div className="w-8 h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{ width: `${crisis.confidence_score * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {Math.round(crisis.confidence_score > 1 ? crisis.confidence_score : crisis.confidence_score * 100)}%
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={getStatusColor(crisis.status)}
-                      >
-                        {crisis.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {crisis.user_college}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Dialog open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
-                          <DialogTrigger asChild>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              title="View Details"
-                              onClick={() => setSelectedCrisis(crisis)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle>Crisis Alert Details</DialogTitle>
-                              <DialogDescription>
-                                Detailed information for {selectedCrisis?.user_anonymous}
-                              </DialogDescription>
-                            </DialogHeader>
-                            {selectedCrisis && (
-                              <div className="space-y-6">
-                                {/* Basic Information */}
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <Label className="text-sm font-medium">Student ID</Label>
-                                    <p className="text-sm text-muted-foreground">{selectedCrisis.user_anonymous}</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-sm font-medium">College</Label>
-                                    <p className="text-sm text-muted-foreground">{selectedCrisis.user_college}</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-sm font-medium">Crisis Type</Label>
-                                    <p className="text-sm text-muted-foreground">{selectedCrisis.crisis_type.replace(/_/g, ' ')}</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-sm font-medium">Risk Level</Label>
-                                    <Badge className={getRiskColor(selectedCrisis.risk_level)}>
-                                      {selectedCrisis.risk_level.toUpperCase()}
-                                    </Badge>
-                                  </div>
-                                  <div>
-                                    <Label className="text-sm font-medium">Urgency Level</Label>
-                                    <p className="text-sm text-muted-foreground">{selectedCrisis.urgency_level}</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-sm font-medium">Confidence Score</Label>
-                                    <p className="text-sm text-muted-foreground">
-                                      {Math.round(selectedCrisis.confidence_score > 1 ? selectedCrisis.confidence_score : selectedCrisis.confidence_score * 100)}%
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-sm font-medium">Detected</Label>
-                                    <p className="text-sm text-muted-foreground">{formatTimeAgo(selectedCrisis.detected_at)}</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-sm font-medium">Status</Label>
-                                    <Badge className={getStatusColor(selectedCrisis.status)}>
-                                      {selectedCrisis.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-
-                                {/* Trigger Message */}
-                                <div>
-                                  <Label className="text-sm font-medium">Trigger Message</Label>
-                                  <div className="mt-2 p-3 bg-muted rounded-md">
-                                    <p className="text-sm">{selectedCrisis.trigger_message}</p>
-                                  </div>
-                                </div>
-
-                                {/* Detected Indicators */}
-                                {selectedCrisis.detected_indicators?.length > 0 && (
-                                  <div>
-                                    <Label className="text-sm font-medium">Detected Indicators</Label>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {selectedCrisis.detected_indicators.map((indicator, index) => (
-                                        <Badge key={index} variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                          {indicator}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Risk Factors */}
-                                {selectedCrisis.risk_factors?.length > 0 && (
-                                  <div>
-                                    <Label className="text-sm font-medium">Risk Factors</Label>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {selectedCrisis.risk_factors.map((factor, index) => (
-                                        <Badge key={index} variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                          {factor}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Main Concerns */}
-                                {selectedCrisis.main_concerns?.length > 0 && (
-                                  <div>
-                                    <Label className="text-sm font-medium">Main Concerns</Label>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {selectedCrisis.main_concerns.map((concern, index) => (
-                                        <Badge key={index} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                          {concern}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Cognitive Distortions */}
-                                {selectedCrisis.cognitive_distortions?.length > 0 && (
-                                  <div>
-                                    <Label className="text-sm font-medium">Cognitive Distortions</Label>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {selectedCrisis.cognitive_distortions.map((distortion, index) => (
-                                        <Badge key={index} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                          {distortion}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </DialogContent>
-                        </Dialog>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              title="Schedule Session"
-                              onClick={() => setSelectedCrisis(crisis)}
-                              disabled={crisis.has_session_scheduled}
-                            >
-                              <Calendar className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Schedule Therapy Session</DialogTitle>
-                              <DialogDescription>
-                                Schedule a session for {selectedCrisis?.user_anonymous} - {selectedCrisis?.crisis_type}
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div>
-                                <Label htmlFor="session-date">Date</Label>
-                                <Input
-                                  id="session-date"
-                                  type="date"
-                                  value={sessionDate}
-                                  onChange={(e) => setSessionDate(e.target.value)}
-                                  min={new Date().toISOString().split('T')[0]}
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor="session-time">Time</Label>
-                                <Input
-                                  id="session-time"
-                                  type="time"
-                                  value={sessionTime}
-                                  onChange={(e) => setSessionTime(e.target.value)}
-                                />
-                              </div>
-                              <Button
-                                onClick={handleScheduleSession}
-                                disabled={schedulingSession}
-                                className="w-full"
-                              >
-                                {schedulingSession ? "Scheduling..." : "Schedule Session"}
-                              </Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          title="Acknowledge"
-                          onClick={() => handleQuickResponse(crisis.id, "acknowledge")}
-                          disabled={crisis.status === "acknowledged"}
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {filteredAlerts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      No crisis alerts found
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  filteredAlerts.map((alert) => (
+                    <TableRow key={alert.id}>
+                      <TableCell className="font-medium">
+                        {alert.user_anonymous}
+                      </TableCell>
+                      <TableCell>
+                        <span className="capitalize">{alert.crisis_type.replace('_', ' ')}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getRiskLevelColor(alert.risk_level)}>
+                          {alert.risk_level}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(alert.status)}>
+                          {alert.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(alert.detected_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>{alert.hours_since_detection}</TableCell>
+                      <TableCell>{alert.confidence_score}</TableCell>
+                      <TableCell>
+                        {alert.has_session_scheduled ? (
+                          <Badge className="bg-green-500 text-white">Scheduled</Badge>
+                        ) : (
+                          <Badge variant="outline">Not Scheduled</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleAcknowledge(alert.id)}
+                            disabled={alert.status === "acknowledged"}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => openScheduleModal(alert)}
+                            disabled={alert.has_session_scheduled}
+                            title={alert.has_session_scheduled ? "Session already scheduled" : "Schedule session"}
+                          >
+                            <Calendar className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              setSelectedAlert(alert);
+                              setIsDetailsOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
 
-        {/* Results count */}
-        <div className="mt-4 text-sm text-muted-foreground">
-          Showing {filteredData.length} of {crisisData.length} alerts
-        </div>
+        {/* Crisis Details Dialog */}
+        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Crisis Alert Details</DialogTitle>
+              <DialogDescription>
+                Detailed information about the crisis alert
+              </DialogDescription>
+            </DialogHeader>
+            {selectedAlert && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Student</Label>
+                    <p className="text-sm text-muted-foreground">{selectedAlert.user_anonymous}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">College</Label>
+                    <p className="text-sm text-muted-foreground">{selectedAlert.user_college}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Crisis Type</Label>
+                    <p className="text-sm text-muted-foreground capitalize">
+                      {selectedAlert.crisis_type.replace('_', ' ')}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Risk Level</Label>
+                    <Badge className={getRiskLevelColor(selectedAlert.risk_level)}>
+                      {selectedAlert.risk_level}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Confidence Score</Label>
+                    <p className="text-sm text-muted-foreground">{selectedAlert.confidence_score}%</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Urgency Level</Label>
+                    <p className="text-sm text-muted-foreground">{selectedAlert.urgency_level || "Not specified"}</p>
+                  </div>
+                </div>
+
+                {selectedAlert.trigger_message && (
+                  <div>
+                    <Label className="text-sm font-medium">Trigger Message</Label>
+                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                      {selectedAlert.trigger_message}
+                    </p>
+                  </div>
+                )}
+
+                {selectedAlert.risk_factors && selectedAlert.risk_factors.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium">Risk Factors</Label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedAlert.risk_factors.map((factor, index) => (
+                        <Badge key={index} variant="secondary">
+                          {factor}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedAlert.main_concerns && selectedAlert.main_concerns.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium">Main Concerns</Label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedAlert.main_concerns.map((concern, index) => (
+                        <Badge key={index} variant="outline">
+                          {concern}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedAlert.cognitive_distortions && selectedAlert.cognitive_distortions.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium">Cognitive Distortions</Label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedAlert.cognitive_distortions.map((distortion, index) => (
+                        <Badge key={index} variant="destructive">
+                          {distortion}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Session Scheduling Dialog */}
+        <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Schedule Therapy Session</DialogTitle>
+              <DialogDescription>
+                Schedule a session for crisis alert from {selectedAlert?.user_anonymous}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Session Type</Label>
+                <Select
+                  value={sessionForm.session_type}
+                  onValueChange={(value) =>
+                    setSessionForm(prev => ({ ...prev, session_type: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ONLINE_MEET">
+                      <div className="flex items-center gap-2">
+                        <Video className="h-4 w-4" />
+                        Online Meeting
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="PHONE_CALL">
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        Phone Call
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="IN_PERSON">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        In Person
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Scheduled Date & Time</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !sessionForm.scheduled_for && "text-muted-foreground"
+                      )}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {sessionForm.scheduled_for
+                        ? format(sessionForm.scheduled_for, "PPP p")
+                        : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={sessionForm.scheduled_for}
+                      onSelect={(date) =>
+                        date && setSessionForm(prev => ({ ...prev, scheduled_for: date }))
+                      }
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="mt-2">
+                  <Input
+                    type="time"
+                    value={format(sessionForm.scheduled_for, "HH:mm")}
+                    onChange={(e) => {
+                      const [hours, minutes] = e.target.value.split(":");
+                      const newDate = new Date(sessionForm.scheduled_for);
+                      newDate.setHours(parseInt(hours), parseInt(minutes));
+                      setSessionForm(prev => ({ ...prev, scheduled_for: newDate }));
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Duration (minutes)</Label>
+                <Select
+                  value={sessionForm.duration_minutes.toString()}
+                  onValueChange={(value) =>
+                    setSessionForm(prev => ({ ...prev, duration_minutes: parseInt(value) }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="50">50 minutes</SelectItem>
+                    <SelectItem value="90">90 minutes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {sessionForm.session_type === "ONLINE_MEET" && (
+                <div className="space-y-2">
+                  <Label>Meeting Link *</Label>
+                  <Input
+                    type="url"
+                    placeholder="https://meet.google.com/..."
+                    value={sessionForm.meeting_link}
+                    onChange={(e) =>
+                      setSessionForm(prev => ({ ...prev, meeting_link: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4">
+                <Button
+                  onClick={handleScheduleSession}
+                  disabled={isSchedulingSession}
+                  className="flex-1"
+                >
+                  {isSchedulingSession ? (
+                    <>
+                      <Clock className="mr-2 h-4 w-4 animate-spin" />
+                      Scheduling...
+                    </>
+                  ) : (
+                    "Schedule Session"
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsScheduleOpen(false)}
+                  disabled={isSchedulingSession}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
