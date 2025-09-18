@@ -29,3 +29,4 @@ backend2/venv/
 config.py
 .env
 alembic.ini
+alembic
