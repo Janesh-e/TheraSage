@@ -1,7 +1,8 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from uuid import UUID
+from enum import Enum
 
 # Pydantic models
 class UserCreate(BaseModel):
@@ -136,3 +137,52 @@ class TherapistResponse(BaseModel):
     class Config:
         from_attributes = True
         orm_mode = True
+
+
+class TherapistSessionType(str, Enum):
+    ONLINE_MEET = "online_meet"
+    PHONE_CALL = "phone_call"  
+    IN_PERSON = "in_person"
+
+class TherapistSessionCreate(BaseModel):
+    session_type: TherapistSessionType
+    scheduled_for: datetime
+    duration_minutes: int = 50
+    meeting_link: Optional[str] = None  # Required only if session_type is online_meet
+    therapist_id: str
+    
+    @validator('meeting_link')
+    def validate_meeting_link(cls, v, values):
+        if values.get('session_type') == TherapistSessionType.ONLINE_MEET:
+            if not v or not v.strip():
+                raise ValueError('meeting_link is required for online meetings')
+        return v
+
+class TherapistSessionUpdate(BaseModel):
+    attended: Optional[bool] = None
+    session_notes: Optional[str] = None
+    follow_up_needed: Optional[bool] = None
+    next_session_recommended: Optional[datetime] = None
+    status: Optional[str] = None  # completed, cancelled
+
+class TherapistSessionResponse(BaseModel):
+    id: str
+    user_id: str
+    crisis_alert_id: Optional[str]
+    session_type: str
+    urgency_level: str
+    status: str
+    requested_at: datetime
+    scheduled_for: Optional[datetime]
+    duration_minutes: int
+    meeting_link: Optional[str]
+    external_therapist_id: Optional[str]
+    attended: Optional[bool]
+    session_notes: Optional[str]
+    follow_up_needed: bool
+    next_session_recommended: Optional[datetime]
+    completed_at: Optional[datetime]
+    cancelled_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True

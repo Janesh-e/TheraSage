@@ -7,11 +7,12 @@ from uuid import UUID
 
 from db import get_db
 from models import (
-    CrisisAlert, User, ChatSession, Therapist, TherapistSession,
+    CrisisAlert, User, ChatSession, Therapist, TherapistSession, TherapistSessionType,
     RiskLevel, CrisisType, SessionStatus, TherapistStatus, TherapistRole
 )
 from crisis_alert_manager import CrisisAlertManager
 from pydantic import BaseModel
+from schemas import TherapistSessionCreate, TherapistSessionUpdate, TherapistSessionResponse
 
 router = APIRouter(
     prefix="/therapist-dashboard",
@@ -263,6 +264,159 @@ async def get_therapist_session_schedule(
         "total_sessions": len(schedule),
         "sessions": schedule
     }
+
+@router.post("/crisis/{alert_id}/create-session", response_model=TherapistSessionResponse)
+async def create_manual_therapist_session(
+    alert_id: UUID,
+    session_data: TherapistSessionCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a therapist session manually with full therapist control"""
+    
+    # Get crisis alert
+    crisis_alert = db.query(CrisisAlert).filter(CrisisAlert.id == alert_id).first()
+    if not crisis_alert:
+        raise HTTPException(status_code=404, detail="Crisis alert not found")
+    
+    # Check if session already exists
+    existing_session = db.query(TherapistSession).filter(
+        TherapistSession.crisis_alert_id == alert_id
+    ).first()
+    
+    if existing_session:
+        raise HTTPException(
+            status_code=400, 
+            detail="Therapist session already exists for this crisis alert"
+        )
+    
+    current_time = datetime.now(timezone.utc)
+    
+    # Validate meeting link for online sessions
+    if session_data.session_type == TherapistSessionType.ONLINE_MEET:
+        if not session_data.meeting_link or not session_data.meeting_link.strip():
+            raise HTTPException(
+                status_code=400, 
+                detail="Meeting link is required for online meetings"
+            )
+    
+    # Create therapist session
+    therapist_session = TherapistSession(
+        user_id=crisis_alert.user_id,
+        crisis_alert_id=crisis_alert.id,
+        session_type=session_data.session_type,
+        urgency_level=crisis_alert.risk_level,
+        requested_at=current_time,
+        scheduled_for=session_data.scheduled_for,
+        duration_minutes=session_data.duration_minutes,
+        meeting_link=session_data.meeting_link if session_data.session_type == TherapistSessionType.ONLINE_MEET else None,
+        status=SessionStatus.SCHEDULED,
+        external_therapist_id=session_data.therapist_id,
+        follow_up_needed=False
+    )
+    
+    db.add(therapist_session)
+    
+    # Update crisis alert
+    crisis_alert.status = "escalated"
+    crisis_alert.escalated_to_human = True
+    crisis_alert.response_actions = crisis_alert.response_actions or {}
+    crisis_alert.response_actions.update({
+        "manual_session_created": current_time.isoformat(),
+        "session_type": session_data.session_type.value,
+        "therapist_id": session_data.therapist_id,
+        "scheduled_for": session_data.scheduled_for.isoformat(),
+        "meeting_link_provided": bool(session_data.meeting_link)
+    })
+    
+    db.commit()
+    db.refresh(therapist_session)
+    
+    return TherapistSessionResponse.from_orm(therapist_session)
+
+@router.put("/sessions/{session_id}", response_model=TherapistSessionResponse)
+async def update_therapist_session(
+    session_id: UUID,
+    session_update: TherapistSessionUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update therapist session details after completion"""
+    
+    # Get the session
+    session = db.query(TherapistSession).filter(TherapistSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Therapist session not found")
+    
+    current_time = datetime.now(timezone.utc)
+    
+    # Update fields if provided
+    if session_update.attended is not None:
+        session.attended = session_update.attended
+    
+    if session_update.session_notes is not None:
+        session.session_notes = session_update.session_notes
+    
+    if session_update.follow_up_needed is not None:
+        session.follow_up_needed = session_update.follow_up_needed
+    
+    if session_update.next_session_recommended is not None:
+        session.next_session_recommended = session_update.next_session_recommended
+    
+    # Handle status updates with appropriate timestamps
+    if session_update.status:
+        if session_update.status.lower() == "completed":
+            session.status = SessionStatus.COMPLETED
+            if not session.completed_at:  # Only set if not already set
+                session.completed_at = current_time
+        elif session_update.status.lower() == "cancelled":
+            session.status = SessionStatus.CANCELLED
+            if not session.cancelled_at:  # Only set if not already set
+                session.cancelled_at = current_time
+        else:
+            # Handle other status updates
+            try:
+                session.status = SessionStatus(session_update.status.lower())
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {session_update.status}")
+    
+    db.commit()
+    db.refresh(session)
+    
+    return TherapistSessionResponse.from_orm(session)
+
+@router.get("/sessions/{session_id}", response_model=TherapistSessionResponse)
+async def get_therapist_session(
+    session_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """Get a specific therapist session"""
+    
+    session = db.query(TherapistSession).filter(TherapistSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Therapist session not found")
+    
+    return TherapistSessionResponse.from_orm(session)
+
+@router.get("/sessions", response_model=list[TherapistSessionResponse])
+async def get_therapist_sessions(
+    skip: int = 0,
+    limit: int = 100,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Get all therapist sessions with optional filtering"""
+    
+    query = db.query(TherapistSession)
+    
+    if status:
+        try:
+            status_enum = SessionStatus(status.lower())
+            query = query.filter(TherapistSession.status == status_enum)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+    
+    sessions = query.offset(skip).limit(limit).all()
+    return [TherapistSessionResponse.from_orm(session) for session in sessions]
+
 
 # ===== CRISIS ALERT ACTIONS =====
 

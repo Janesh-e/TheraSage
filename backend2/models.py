@@ -75,6 +75,11 @@ class TherapistStatus(enum.Enum):
     BUSY = "busy"
     UNAVAILABLE = "unavailable"
 
+class TherapistSessionType(enum.Enum):
+    ONLINE_MEET = "online_meet"
+    PHONE_CALL = "phone_call"
+    IN_PERSON = "in_person"
+
 class NotificationStatus(enum.Enum):
     PENDING = "pending"
     SENT = "sent"
@@ -316,7 +321,7 @@ class TherapistSession(Base):
     crisis_alert_id = Column(get_uuid_column(), ForeignKey("crisis_alerts.id", ondelete="SET NULL"), nullable=True)
     
     # Session details
-    session_type = Column(String(50), nullable=False, index=True)  # crisis, regular, follow_up, group
+    session_type = Column(SQLEnum(TherapistSessionType), nullable=False, default=TherapistSessionType.ONLINE_MEET)  # crisis, regular, follow_up, group
     urgency_level = Column(SQLEnum(RiskLevel), nullable=False, index=True)
     
     # Scheduling

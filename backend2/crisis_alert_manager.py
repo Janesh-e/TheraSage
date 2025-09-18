@@ -35,21 +35,21 @@ class CrisisAlertManager:
         )
         
         # 3. Create therapist session if high/critical risk
-        therapist_session = None
+        '''therapist_session = None
         if crisis_alert.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
             therapist_session = await self._create_emergency_session(
                 crisis_alert, assigned_therapist
-            )
+            )'''
         
         # 4. Send notifications
         await self._send_crisis_notifications(
-            crisis_alert, assigned_therapist, therapist_session
+            crisis_alert, assigned_therapist, None
         )
         
         return {
             "crisis_alert_id": str(crisis_alert.id),
             "assigned_therapist_id": assigned_therapist["id"] if assigned_therapist else None,
-            "therapist_session_id": str(therapist_session.id) if therapist_session else None,
+            "therapist_session_id": None,
             "risk_level": crisis_alert.risk_level.value,
             "auto_escalated": crisis_alert.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]
         }
@@ -400,14 +400,14 @@ class CrisisAlertManager:
                 "message": f"New crisis alert assigned - {crisis_alert.crisis_type.value}"
             })
         
-        if therapist_session:
+        '''if therapist_session:
             # Notify about emergency session
             notifications_sent.append({
                 "type": "emergency_session",
                 "recipient": therapist_data["email"],
                 "session_time": therapist_session.scheduled_for,
                 "meeting_link": therapist_session.meeting_link
-            })
+            })'''
         
         # Notify admin for critical cases
         if crisis_alert.risk_level == RiskLevel.CRITICAL:
